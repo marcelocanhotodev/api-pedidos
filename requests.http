@@ -1,0 +1,27 @@
+### Exemplos de requisições (VS Code REST Client / JetBrains HTTP Client)
+@baseUrl = http://localhost:8080
+
+### Informações da API (anônimo)
+GET {{baseUrl}}/info
+
+### Emitir token (usa AUTH_USUARIO / AUTH_SENHA do .env)
+# @name token
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+
+{
+  "usuario": "admin",
+  "senha": "admin_dev"
+}
+
+### Token guardado para as próximas requisições
+@accessToken = {{token.response.body.accessToken}}
+
+### Credenciais inválidas -> 401 problem+json
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+
+{
+  "usuario": "admin",
+  "senha": "errada"
+}

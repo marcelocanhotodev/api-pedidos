@@ -1,0 +1,40 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{json,yml,yaml,xml,csproj,props,slnx}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.cs]
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_style_var_for_built_in_types = true:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_prefer_braces = when_multiline:suggestion
+dotnet_sort_system_directives_first = true
+
+# Nomes em português são intencionais (convenção do projeto)
+dotnet_diagnostic.CA1707.severity = none
+# Projeto não é localizado; mensagens em português direto no código
+dotnet_diagnostic.CA1303.severity = none
+# ConfigureAwait não é necessário em ASP.NET Core
+dotnet_diagnostic.CA2007.severity = none
+# Logs com ILogger direto: volume baixo, legibilidade acima de micro-otimização
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+
+[tests/**.cs]
+# Classes de teste e fixtures públicas por exigência do xUnit
+dotnet_diagnostic.CA1515.severity = none
+dotnet_diagnostic.CA1062.severity = none
+dotnet_diagnostic.CA1861.severity = none
+# Fixtures descartadas pelo xUnit via IAsyncLifetime.DisposeAsync
+dotnet_diagnostic.CA1001.severity = none

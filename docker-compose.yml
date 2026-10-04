@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?defina POSTGRES_DB no .env (copie de .env.example)}
+      POSTGRES_USER: ${POSTGRES_USER:?defina POSTGRES_USER no .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+    volumes:
+      - pedidos-dados:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      ConnectionStrings__Padrao: ${ConnectionStrings__Padrao:?defina ConnectionStrings__Padrao no .env}
+      APLICAR_MIGRACOES: ${APLICAR_MIGRACOES:-true}
+      JWT_CHAVE: ${JWT_CHAVE:?defina JWT_CHAVE no .env (mínimo 32 caracteres)}
+      JWT_EMISSOR: ${JWT_EMISSOR:?defina JWT_EMISSOR no .env}
+      JWT_AUDIENCIA: ${JWT_AUDIENCIA:?defina JWT_AUDIENCIA no .env}
+      JWT_EXPIRA_MINUTOS: ${JWT_EXPIRA_MINUTOS:-60}
+      AUTH_USUARIO: ${AUTH_USUARIO:?defina AUTH_USUARIO no .env}
+      AUTH_SENHA: ${AUTH_SENHA:?defina AUTH_SENHA no .env}
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pedidos-dados:
