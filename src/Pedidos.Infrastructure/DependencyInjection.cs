@@ -4,7 +4,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using Pedidos.Application.Abstracoes;
+using Pedidos.Domain.Repositorios;
 using Pedidos.Infrastructure.Dados;
+using Pedidos.Infrastructure.Dados.Repositorios;
 using Pedidos.Infrastructure.Migracoes;
 using Pedidos.Infrastructure.Saude;
 using Pedidos.Infrastructure.Seguranca;
@@ -40,6 +42,7 @@ public static class DependencyInjection
         services.AddScoped<DbSession>();
         services.AddScoped<IDbSession>(sp => sp.GetRequiredService<DbSession>());
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+        services.AddScoped<IClienteRepository, ClienteRepository>();
 
         services.AddHealthChecks()
             .AddCheck<BancoHealthCheck>("banco", tags: [TagProntidao]);

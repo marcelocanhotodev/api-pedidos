@@ -17,6 +17,54 @@ Content-Type: application/json
 ### Token guardado para as próximas requisições
 @accessToken = {{token.response.body.accessToken}}
 
+### ---------- Clientes ----------
+
+### Criar cliente -> 201 + Location
+# @name clienteCriado
+POST {{baseUrl}}/api/v1/clientes
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "nome": "Ana Souza",
+  "email": "ana@exemplo.com"
+}
+
+### Id do cliente criado
+@clienteId = {{clienteCriado.response.body.id}}
+
+### Obter cliente
+GET {{baseUrl}}/api/v1/clientes/{{clienteId}}
+Authorization: Bearer {{accessToken}}
+
+### Listar clientes (paginado, busca por nome ou e-mail)
+GET {{baseUrl}}/api/v1/clientes?busca=ana&pagina=1&tamanhoPagina=20
+Authorization: Bearer {{accessToken}}
+
+### Atualizar cliente
+PUT {{baseUrl}}/api/v1/clientes/{{clienteId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "nome": "Ana Souza Lima",
+  "email": "ana.lima@exemplo.com"
+}
+
+### E-mail duplicado -> 409
+POST {{baseUrl}}/api/v1/clientes
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "nome": "Outra Ana",
+  "email": "ANA.LIMA@exemplo.com"
+}
+
+### Excluir cliente -> 204
+DELETE {{baseUrl}}/api/v1/clientes/{{clienteId}}
+Authorization: Bearer {{accessToken}}
+
 ### Credenciais inválidas -> 401 problem+json
 POST {{baseUrl}}/api/v1/auth/token
 Content-Type: application/json

@@ -6,7 +6,12 @@ public sealed record PaginaResultado<T>(
     int Pagina,
     int TamanhoPagina,
     long TotalItens,
-    int TotalPaginas);
+    int TotalPaginas)
+{
+    /// <summary>Mesma página com os itens convertidos.</summary>
+    public PaginaResultado<TDestino> Mapear<TDestino>(Func<T, TDestino> conversor) =>
+        new(Itens.Select(conversor).ToList(), Pagina, TamanhoPagina, TotalItens, TotalPaginas);
+}
 
 public static class PaginaResultado
 {

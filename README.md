@@ -20,6 +20,7 @@ docker compose up --build
 | http://localhost:8080/health/live | Processo vivo (`200`) |
 | http://localhost:8080/health/ready | Banco acessível (`200`) ou não (`503`) |
 | http://localhost:8080/api/v1/auth/token | Emissão de token JWT (`POST`) |
+| http://localhost:8080/api/v1/clientes | CRUD de clientes (`GET`, `POST`, `GET/PUT/DELETE /{id}`), com token |
 
 Exemplos prontos em [`requests.http`](requests.http).
 
@@ -118,6 +119,12 @@ se um endpoint receber repositório/`IUnitOfWork`/conexão ou se um caso de uso 
   Testes sobre as rotas registradas garantem que nenhuma rota `/api/v1` além do token é anônima e que todo endpoint de negócio está no grupo.
 - **JWT**: emitido com `Microsoft.IdentityModel.JsonWebTokens` na Infrastructure e validado pelo `FastEndpoints.Security` na Api;
   credenciais comparadas pelo SHA-256 em tempo constante.
+- **Clientes**: a entidade `Cliente` normaliza (sem espaços nas pontas) e valida nome/e-mail em qualquer caminho, não só no HTTP.
+  E-mail único sem diferenciar maiúsculas: checagem no caso de uso e índice único em `lower(email)` para corridas (`23505` → `409`).
+  Busca com `ILIKE` tratando `%`, `_` e `\` como literais; listagem ordenada por `nome, id` para páginas estáveis; ids UUID v7.
+- **Saídas por caso de uso**: `CriarClienteSaida`, `ObterClienteSaida` e `AtualizarClienteSaida` têm os mesmos campos de propósito —
+  a convenção verificada pelo teste de arquitetura exige `<Nome>Saida` próprio, e cada caso de uso evolui sozinho.
+- **Datas com precisão de microssegundos** (a do `timestamptz`): o valor devolvido ao criar é idêntico ao lido depois.
 - **Espera pelo banco**: a API tenta conectar por até 30 s antes de migrar e encerra com código diferente de zero se o banco não responder.
 
 ## Fatias (changes OpenSpec)

@@ -2,7 +2,12 @@ using Npgsql;
 
 namespace Pedidos.Infrastructure.Dados;
 
-internal sealed class DbSession(NpgsqlDataSource dataSource) : IDbSession, IAsyncDisposable
+/// <remarks>
+/// Implementa <see cref="IDisposable"/> além de <see cref="IAsyncDisposable"/>: alguns escopos de DI são descartados
+/// de forma síncrona (ex.: o FastEndpoints resolve os endpoints num escopo síncrono ao iniciar), e o contêiner
+/// recusa descartar sincronamente um serviço que só oferece <see cref="IAsyncDisposable"/>.
+/// </remarks>
+internal sealed class DbSession(NpgsqlDataSource dataSource) : IDbSession, IAsyncDisposable, IDisposable
 {
     private NpgsqlConnection? _conexao;
 
@@ -49,6 +54,14 @@ internal sealed class DbSession(NpgsqlDataSource dataSource) : IDbSession, IAsyn
             await _conexao.DisposeAsync();
             _conexao = null;
         }
+    }
+
+    public void Dispose()
+    {
+        Transacao?.Dispose();
+        Transacao = null;
+        _conexao?.Dispose();
+        _conexao = null;
     }
 
     private async ValueTask EncerrarTransacaoAsync()
