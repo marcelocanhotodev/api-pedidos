@@ -14,9 +14,12 @@ public sealed record RotaRegistrada(string Caminho, Type TipoDoEndpoint, bool An
 public static class RegrasDeRotas
 {
     public const string PrefixoApi = "/api/v1/";
-    public const string RotaDoToken = "/api/v1/auth/token";
+    public const string RotaDoToken = "/auth/token";
     public const string NamespaceDosEndpoints = "Pedidos.Api.Endpoints";
-    public const string NamespaceDeSistema = "Pedidos.Api.Endpoints.Sistema";
+
+    /// <summary>Endpoints públicos que ficam fora de /api/v1 de propósito: autenticação e informações operacionais.</summary>
+    public static readonly IReadOnlyList<string> NamespacesForaDoGrupo =
+        ["Pedidos.Api.Endpoints.Auth", "Pedidos.Api.Endpoints.Sistema"];
 
     public static IReadOnlyList<RotaRegistrada> Ler(EndpointDataSource fonte)
     {
@@ -33,18 +36,20 @@ public static class RegrasDeRotas
             .ToList();
     }
 
-    /// <summary>Nenhuma rota de /api/v1 além da emissão de token pode aceitar acesso anônimo.</summary>
+    /// <summary>Nenhuma rota de /api/v1 pode aceitar acesso anônimo, sem exceção.</summary>
     public static IReadOnlyList<string> AnonimasIndevidas(IEnumerable<RotaRegistrada> rotas) =>
         rotas
             .Where(r => r.Anonima && r.Caminho.StartsWith(PrefixoApi, StringComparison.OrdinalIgnoreCase))
-            .Where(r => !r.Caminho.Equals(RotaDoToken, StringComparison.OrdinalIgnoreCase))
             .Select(r => $"{r.Caminho} ({r.TipoDoEndpoint.Name}) aceita acesso anônimo")
             .ToList();
 
-    /// <summary>Todo endpoint de negócio (Pedidos.Api.Endpoints fora de Sistema) fica sob /api/v1 (Group&lt;ApiV1&gt;).</summary>
+    /// <summary>
+    /// Todo endpoint de negócio (Pedidos.Api.Endpoints fora de <see cref="NamespacesForaDoGrupo"/>) fica sob /api/v1 (Group&lt;ApiV1&gt;).
+    /// </summary>
     public static IReadOnlyList<string> ForaDoGrupoApiV1(IEnumerable<RotaRegistrada> rotas) =>
         rotas
-            .Where(r => EstaNoNamespace(r.TipoDoEndpoint, NamespaceDosEndpoints) && !EstaNoNamespace(r.TipoDoEndpoint, NamespaceDeSistema))
+            .Where(r => EstaNoNamespace(r.TipoDoEndpoint, NamespaceDosEndpoints))
+            .Where(r => !NamespacesForaDoGrupo.Any(ns => EstaNoNamespace(r.TipoDoEndpoint, ns)))
             .Where(r => !r.Caminho.StartsWith(PrefixoApi, StringComparison.OrdinalIgnoreCase))
             .Select(r => $"{r.TipoDoEndpoint.Name} está em {r.Caminho}, fora de /api/v1 (falta Group<ApiV1>)")
             .ToList();

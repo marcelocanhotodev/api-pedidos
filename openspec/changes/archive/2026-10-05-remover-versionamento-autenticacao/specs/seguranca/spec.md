@@ -1,10 +1,4 @@
-# seguranca Specification
-
-## Purpose
-
-Garante que somente clientes autenticados acessem a API, emitindo tokens JWT para o usuário configurado e protegendo todos os endpoints de negócio.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Emissão de Token
 O sistema DEVE (SHALL) oferecer `POST /auth/token`, fora de qualquer prefixo de versão, implementado pelo caso de uso `GerarTokenUseCase`, que recebe `usuario` e `senha` e devolve um JWT (`accessToken`) e `expiraEm`, a validade do token em segundos a partir da emissão, quando as credenciais coincidem com o usuário configurado.
@@ -47,14 +41,3 @@ O sistema DEVE (SHALL) exigir token JWT Bearer válido em todos os endpoints `/a
 #### Scenario: Rotas públicas continuam abertas
 - **WHEN** um cliente chama `POST /auth/token`, `GET /info` ou `/health/ready` sem token
 - **THEN** a API responde normalmente, sem `401`
-
-### Requirement: Tratamento de Segredos
-O sistema DEVE (SHALL) ler a chave de assinatura do JWT (mínimo de 32 caracteres), emissor, audiência, validade e credenciais a partir das variáveis de ambiente `JWT_CHAVE`, `JWT_EMISSOR`, `JWT_AUDIENCIA`, `JWT_EXPIRA_MINUTOS`, `AUTH_USUARIO` e `AUTH_SENHA`, documentadas em `.env.example` com valores apenas de desenvolvimento, e DEVE (SHALL) recusar a inicialização se a chave estiver ausente ou curta.
-
-#### Scenario: Chave ausente
-- **WHEN** a aplicação inicia sem `JWT_CHAVE`
-- **THEN** o processo encerra com mensagem clara e código de saída diferente de zero
-
-#### Scenario: Chave curta
-- **WHEN** a aplicação inicia com `JWT_CHAVE` de menos de 32 caracteres
-- **THEN** o processo encerra com mensagem clara e código de saída diferente de zero

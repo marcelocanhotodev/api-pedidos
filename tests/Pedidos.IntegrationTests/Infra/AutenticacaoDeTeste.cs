@@ -6,12 +6,12 @@ namespace Pedidos.IntegrationTests.Infra;
 
 internal static class AutenticacaoDeTeste
 {
-    /// <summary>Cria um cliente HTTP já com <c>Authorization: Bearer</c> obtido em /api/v1/auth/token.</summary>
+    /// <summary>Cria um cliente HTTP já com <c>Authorization: Bearer</c> obtido em /auth/token.</summary>
     public static async Task<HttpClient> CriarClienteAutenticadoAsync(this ApiFactory factory)
     {
         var cliente = factory.CreateClient();
         var resposta = await cliente.PostAsJsonAsync(
-            new Uri("/api/v1/auth/token", UriKind.Relative),
+            new Uri(RegrasDeRotas.RotaDoToken, UriKind.Relative),
             new { usuario = ApiFactory.Usuario, senha = ApiFactory.Senha });
         resposta.EnsureSuccessStatusCode();
 

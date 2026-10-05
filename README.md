@@ -19,7 +19,7 @@ docker compose up --build
 | http://localhost:8080/info | Nome, versão e ambiente da API |
 | http://localhost:8080/health/live | Processo vivo (`200`) |
 | http://localhost:8080/health/ready | Banco acessível (`200`) ou não (`503`) |
-| http://localhost:8080/api/v1/auth/token | Emissão de token JWT (`POST`) |
+| http://localhost:8080/auth/token | Emissão de token JWT (`POST`), sem versão e sem autenticação |
 | http://localhost:8080/api/v1/clientes | CRUD de clientes (`GET`, `POST`, `GET/PUT/DELETE /{id}`), com token |
 
 Exemplos prontos em [`requests.http`](requests.http).
@@ -29,11 +29,12 @@ Exemplos prontos em [`requests.http`](requests.http).
 
 ## Autenticação
 
-Todo endpoint sob `/api/v1` exige `Authorization: Bearer <token>`, exceto a própria emissão de token.
-`/info`, `/health/*` e `/swagger` são públicos.
+Todo endpoint sob `/api/v1` exige `Authorization: Bearer <token>`, sem exceção.
+O token é emitido em `POST /auth/token`, fora de `/api/v1`: a autenticação não muda quando surgir uma nova versão da API.
+`/auth/token`, `/info`, `/health/*` e `/swagger` são públicos.
 
 ```bash
-curl -s -X POST http://localhost:8080/api/v1/auth/token \
+curl -s -X POST http://localhost:8080/auth/token \
   -H 'Content-Type: application/json' \
   -d '{"usuario":"admin","senha":"admin_dev"}'
 # {"accessToken":"eyJ...","expiraEm":3600}
@@ -115,8 +116,9 @@ se um endpoint receber repositório/`IUnitOfWork`/conexão ou se um caso de uso 
 - **Logs JSON no stdout** (Serilog): cada requisição registra método, caminho, status, tempo e `TraceId`.
 - **`GET /info`**: o FastEndpoints não inicia sem nenhum endpoint, e a fundação não tem endpoints de negócio. A rota de
   informações mantém a fundação executável e com Swagger, e já segue o padrão endpoint → caso de uso.
-- **Endpoints de negócio no grupo `ApiV1`** (prefixo `/api/v1`), protegidos por padrão; `/info` fica fora do grupo.
-  Testes sobre as rotas registradas garantem que nenhuma rota `/api/v1` além do token é anônima e que todo endpoint de negócio está no grupo.
+- **Endpoints de negócio no grupo `ApiV1`** (prefixo `/api/v1`), protegidos por padrão; autenticação (`/auth/token`) e
+  `/info` ficam fora do grupo e sem versão. Testes sobre as rotas registradas garantem que nenhuma rota `/api/v1` é anônima
+  e que todo endpoint de negócio (fora de `Endpoints/Auth` e `Endpoints/Sistema`) está no grupo.
 - **JWT**: emitido com `Microsoft.IdentityModel.JsonWebTokens` na Infrastructure e validado pelo `FastEndpoints.Security` na Api;
   credenciais comparadas pelo SHA-256 em tempo constante.
 - **Clientes**: a entidade `Cliente` normaliza (sem espaços nas pontas) e valida nome/e-mail em qualquer caminho, não só no HTTP.

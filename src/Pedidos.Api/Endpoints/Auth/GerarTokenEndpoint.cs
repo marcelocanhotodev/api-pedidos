@@ -30,8 +30,8 @@ internal sealed class GerarTokenEndpoint(IUseCase<GerarTokenEntrada, GerarTokenS
 {
     public override void Configure()
     {
+        // Fora do grupo ApiV1: a autenticação não muda entre versões do contrato de negócio.
         Post("auth/token");
-        Group<ApiV1>();
         AllowAnonymous();
         Summary(s =>
         {

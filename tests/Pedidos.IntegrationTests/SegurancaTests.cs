@@ -16,7 +16,7 @@ namespace Pedidos.IntegrationTests;
 [Collection(ColecaoPostgres.Nome)]
 public sealed class SegurancaTests(PostgresFixture postgres) : IAsyncLifetime
 {
-    private static readonly Uri RotaToken = new("/api/v1/auth/token", UriKind.Relative);
+    private static readonly Uri RotaToken = new(RegrasDeRotas.RotaDoToken, UriKind.Relative);
     private static readonly Uri RotaProtegida = new("/api/v1/teste-protegido", UriKind.Relative);
 
     private ApiFactory _factory = null!;
@@ -76,11 +76,32 @@ public sealed class SegurancaTests(PostgresFixture postgres) : IAsyncLifetime
     // --- Versionamento ---
 
     [Fact]
-    public async Task Token_RotaSemVersao_Responde404()
+    public async Task Token_RotaVersionadaRemovida_Responde404()
     {
-        var resposta = await _cliente.PostAsJsonAsync(new Uri("/auth/token", UriKind.Relative), new { usuario = "a", senha = "b" });
+        var resposta = await _cliente.PostAsJsonAsync(
+            new Uri("/api/v1/auth/token", UriKind.Relative), new { usuario = ApiFactory.Usuario, senha = ApiFactory.Senha });
 
         Assert.Equal(HttpStatusCode.NotFound, resposta.StatusCode);
+    }
+
+    [Fact]
+    public async Task Negocio_RotaSemVersao_Responde404()
+    {
+        var token = await ObterTokenAsync();
+
+        var resposta = await GetComTokenAsync(new Uri("/clientes", UriKind.Relative), token);
+
+        Assert.Equal(HttpStatusCode.NotFound, resposta.StatusCode);
+    }
+
+    [Fact]
+    public async Task Negocio_RotaVersionadaComToken_RespondePeloEndpoint()
+    {
+        var token = await ObterTokenAsync();
+
+        var resposta = await GetComTokenAsync(new Uri("/api/v1/clientes", UriKind.Relative), token);
+
+        Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
     }
 
     // --- Proteção dos Endpoints ---
@@ -151,11 +172,12 @@ public sealed class SegurancaTests(PostgresFixture postgres) : IAsyncLifetime
     // --- Regras sobre as rotas registradas ---
 
     [Fact]
-    public void RotasRegistradas_NenhumaRotaApiV1AlemDoTokenAceitaAnonimo()
+    public void RotasRegistradas_NenhumaRotaApiV1AceitaAnonimo()
     {
         var rotas = RegrasDeRotas.Ler(_factory.Services.GetRequiredService<EndpointDataSource>());
 
         Assert.Contains(rotas, r => r.Caminho == RegrasDeRotas.RotaDoToken && r.Anonima);
+        Assert.DoesNotContain(rotas, r => r.Caminho == "/api/v1/auth/token");
         Assert.Empty(RegrasDeRotas.AnonimasIndevidas(rotas));
     }
 
@@ -179,8 +201,10 @@ public sealed class SegurancaTests(PostgresFixture postgres) : IAsyncLifetime
 
         Assert.True(raiz.GetProperty("components").GetProperty("securitySchemes").TryGetProperty("JWTBearerAuth", out _));
         Assert.True(TemSeguranca(caminhos.GetProperty("/api/v1/teste-protegido").GetProperty("get")));
-        Assert.False(TemSeguranca(caminhos.GetProperty("/api/v1/auth/token").GetProperty("post")));
+        Assert.True(TemSeguranca(caminhos.GetProperty("/api/v1/clientes").GetProperty("get")));
+        Assert.False(TemSeguranca(caminhos.GetProperty("/auth/token").GetProperty("post")));
         Assert.False(TemSeguranca(caminhos.GetProperty("/info").GetProperty("get")));
+        Assert.False(caminhos.TryGetProperty("/api/v1/auth/token", out _));
     }
 
     private static bool TemSeguranca(JsonElement operacao) =>
@@ -219,24 +243,26 @@ public class RegrasDeRotasTests
 {
     private sealed class EndpointDeNegocioFicticio;
 
-    [Fact]
-    public void AnonimasIndevidas_RotaApiV1AnonimaAlemDoToken_DetectaViolacao()
+    [Theory]
+    [InlineData("/api/v1/clientes")]
+    [InlineData("/api/v1/auth/token")]
+    public void AnonimasIndevidas_QualquerRotaApiV1Anonima_DetectaViolacao(string rota)
     {
         RotaRegistrada[] rotas =
         [
             new(RegrasDeRotas.RotaDoToken, typeof(object), Anonima: true),
-            new("/api/v1/clientes", typeof(object), Anonima: true),
+            new(rota, typeof(object), Anonima: true),
             new("/info", typeof(object), Anonima: true),
         ];
 
         var violacoes = RegrasDeRotas.AnonimasIndevidas(rotas);
 
         Assert.Single(violacoes);
-        Assert.Contains("/api/v1/clientes", violacoes[0], StringComparison.Ordinal);
+        Assert.Contains(rota, violacoes[0], StringComparison.Ordinal);
     }
 
     [Fact]
-    public void AnonimasIndevidas_SomenteTokenAnonimo_NaoAcusa()
+    public void AnonimasIndevidas_TokenForaDeApiV1EDemaisProtegidas_NaoAcusa()
     {
         RotaRegistrada[] rotas =
         [
@@ -250,19 +276,20 @@ public class RegrasDeRotasTests
     [Fact]
     public void ForaDoGrupoApiV1_EndpointDeNegocioSemGrupo_DetectaViolacao()
     {
-        // Simula um endpoint em Pedidos.Api.Endpoints.* (fora de Sistema) registrado sem o prefixo.
-        var tipo = typeof(Pedidos.Api.Endpoints.Auth.GerarTokenRequest);
-        RotaRegistrada[] rotas = [new("/auth/token", tipo, Anonima: true)];
+        // Simula um endpoint de clientes (namespace de negócio) registrado sem o prefixo /api/v1.
+        var tipo = typeof(Pedidos.Api.Endpoints.Clientes.ClienteResponse);
+        RotaRegistrada[] rotas = [new("/clientes", tipo, Anonima: false)];
 
         Assert.Single(RegrasDeRotas.ForaDoGrupoApiV1(rotas));
     }
 
     [Fact]
-    public void ForaDoGrupoApiV1_EndpointDeNegocioNoGrupoOuDeSistema_NaoAcusa()
+    public void ForaDoGrupoApiV1_NegocioNoGrupoEAuthOuSistemaFora_NaoAcusa()
     {
         RotaRegistrada[] rotas =
         [
-            new("/api/v1/auth/token", typeof(Pedidos.Api.Endpoints.Auth.GerarTokenRequest), Anonima: true),
+            new("/api/v1/clientes", typeof(Pedidos.Api.Endpoints.Clientes.ClienteResponse), Anonima: false),
+            new(RegrasDeRotas.RotaDoToken, typeof(Pedidos.Api.Endpoints.Auth.GerarTokenRequest), Anonima: true),
             new("/info", typeof(Pedidos.Api.Endpoints.Sistema.ObterInformacoesResponse), Anonima: true),
             new("/teste/erros/x", typeof(EndpointDeNegocioFicticio), Anonima: true),
         ];
