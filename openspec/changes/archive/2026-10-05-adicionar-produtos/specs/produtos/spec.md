@@ -24,7 +24,7 @@ O recurso DEVE (SHALL) ser implementado pelos casos de uso abaixo, um por endpoi
 - **THEN** a API responde `401 Unauthorized`
 
 ### Requirement: Criar Produto
-O sistema DEVE (SHALL) criar um produto a partir de `sku`, `nome`, `preco` e `estoque` inicial, gerar `criadoEm`, obter o `id` inteiro gerado pelo banco e responder `201 Created` com o cabeçalho `Location`. O `sku` DEVE (SHALL) ser gravado sem espaços nas pontas e em maiúsculas, ter de 1 a 50 caracteres entre `A-Z`, `0-9`, `-`, `_` e `.`, e ser único. O `nome` DEVE (SHALL) ter de 1 a 150 caracteres após remover espaços nas pontas. O `preco` DEVE (SHALL) estar entre `0` e `9999999999.99`, com no máximo duas casas decimais, e o `estoque` inicial entre `0` e `1000000`.
+O sistema DEVE (SHALL) criar um produto a partir de `sku`, `nome`, `preco` e `estoque` inicial, gerar `criadoEm`, obter o `id` inteiro gerado pelo banco e responder `201 Created` com o cabeçalho `Location`. O `sku` DEVE (SHALL) ser gravado sem espaços nas pontas e em maiúsculas, ter de 1 a 50 caracteres entre `A-Z`, `0-9`, `-`, `_` e `.`, e ser único. O `nome` DEVE (SHALL) ter de 1 a 150 caracteres após remover espaços nas pontas. O `preco` DEVE (SHALL) estar entre `0` e `9999999999.99`, com no máximo duas casas decimais, e DEVE (SHALL) ser sempre devolvido com exatamente duas casas; o `estoque` inicial DEVE (SHALL) estar entre `0` e `1000000`.
 
 #### Scenario: Criação com sucesso
 - **WHEN** dados válidos são enviados
@@ -45,6 +45,10 @@ O sistema DEVE (SHALL) criar um produto a partir de `sku`, `nome`, `preco` e `es
 #### Scenario: Preço negativo
 - **WHEN** o preço enviado é negativo
 - **THEN** a API responde `400` indicando o campo `preco`
+
+#### Scenario: Preço sempre com duas casas
+- **WHEN** o preço enviado é `4.9`
+- **THEN** a resposta do `POST` e a de um `GET` posterior trazem `preco` igual a `4.90`
 
 #### Scenario: Preço com mais de duas casas
 - **WHEN** o preço enviado é `10.999`
@@ -115,6 +119,10 @@ O sistema DEVE (SHALL) ajustar o estoque por `PATCH /api/v1/produtos/{id}/estoqu
 #### Scenario: Ajustes simultâneos
 - **WHEN** dez requisições simultâneas enviam `delta = 1` para um produto com estoque 0
 - **THEN** todas respondem `200` e o estoque final é exatamente 10
+
+#### Scenario: Atualização simultânea a ajustes
+- **WHEN** um `PUT` de nome e preço é processado ao mesmo tempo que dez ajustes `delta = 1` em um produto com estoque 0
+- **THEN** o produto termina com o nome e o preço do `PUT` e estoque exatamente 10
 
 ### Requirement: Integridade de Produtos no Banco
 O esquema DEVE (SHALL) garantir índice único em `sku` e as restrições `check (preco >= 0)` e `check (estoque between 0 and 1000000)` na tabela `produtos`.

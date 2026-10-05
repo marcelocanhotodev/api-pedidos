@@ -43,6 +43,7 @@ public static class DependencyInjection
         services.AddScoped<IDbSession>(sp => sp.GetRequiredService<DbSession>());
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IClienteRepository, ClienteRepository>();
+        services.AddScoped<IProdutoRepository, ProdutoRepository>();
 
         services.AddHealthChecks()
             .AddCheck<BancoHealthCheck>("banco", tags: [TagProntidao]);

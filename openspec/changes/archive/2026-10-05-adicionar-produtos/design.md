@@ -16,6 +16,8 @@ curingas escapados. Produtos segue o mesmo padrão e acrescenta valores numéric
 - Exclusão ou inativação de produtos (pedidos referenciam produtos; fica para uma change futura).
 - Reserva de estoque por pedido (chega em `adicionar-pedidos`, reaproveitando o mesmo mecanismo atômico).
 - Busca textual indexada (`pg_trgm`), categorias, imagens, histórico de preços.
+- Controle de concorrência em `PUT`: dois `PUT` simultâneos no mesmo produto seguem "a última gravação vence".
+  Nome e preço de catálogo não justificam versão/ETag nesta API; pedidos, que têm transições de estado, usam `versao`.
 
 ## Decisions
 
@@ -43,7 +45,9 @@ Sem limites na aplicação, essas entradas viram erro do banco (`500`) ou um val
 | `estoque` (inicial e resultante) | `0 <= estoque <= 1.000.000` | `400` na criação; `422` no ajuste |
 | `delta` | `delta != 0` e `-1.000.000 <= delta <= 1.000.000` | `400` |
 
-`10.999` é rejeitado em vez de virar `11.00`. O banco repete os limites como última barreira:
+`10.999` é rejeitado em vez de virar `11.00`. Preços válidos são normalizados pela entidade para **sempre 2 casas**
+(`4.9` vira `4.90`, por `decimal.Round(preco, 2) + 0.00m`), para que a resposta do `POST`/`PUT` tenha a mesma
+representação que o `GET` (o `numeric(12,2)` sempre devolve 2 casas). O banco repete os limites como última barreira:
 `check (preco >= 0)` e `check (estoque between 0 and 1000000)`.
 
 ### Ajuste de estoque atômico
@@ -65,6 +69,8 @@ Ler, alterar a entidade e gravar perde atualizações sob concorrência (duas re
 - `Trim` + maiúsculas (`ToUpperInvariant`), aceitando só `A-Z`, `0-9`, `-`, `_` e `.`, com 1 a 50 caracteres.
   `" abc-1 "` e `"ABC-1"` são o mesmo produto; a unicidade fica num índice simples em `sku`.
 - O SKU não muda depois da criação: `PUT` substitui só `nome` e `preco`; estoque muda só por `PATCH .../estoque`.
+- O `UPDATE` do `PUT` grava **apenas** `nome` e `preco` (`UPDATE produtos SET nome = @Nome, preco = @Preco WHERE id = @Id`).
+  Gravar também o estoque lido antes desfaria um ajuste concorrente feito entre a leitura e a gravação.
 - Alternativa descartada: guardar como digitado com índice em `lower(sku)` — mantém grafias diferentes do mesmo código.
 
 ## Modelo de dados (script `0003_criar_produtos.sql`)

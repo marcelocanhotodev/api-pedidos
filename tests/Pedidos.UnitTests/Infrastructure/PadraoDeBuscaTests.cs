@@ -2,7 +2,7 @@ using Pedidos.Infrastructure.Dados.Repositorios;
 
 namespace Pedidos.UnitTests.Infrastructure;
 
-/// <summary>Requisito: Consultar Clientes (curingas tratados como literais).</summary>
+/// <summary>Requisitos: Consultar Clientes e Consultar Produtos (curingas tratados como literais).</summary>
 public class PadraoDeBuscaTests
 {
     [Theory]
@@ -14,7 +14,7 @@ public class PadraoDeBuscaTests
     [InlineData("50%_off", @"%50\%\_off%")]
     public void PadraoDeBusca_Termo_EscapaCuringas(string busca, string esperado)
     {
-        Assert.Equal(esperado, ClienteRepository.PadraoDeBusca(busca));
+        Assert.Equal(esperado, BuscaTextual.Padrao(busca));
     }
 
     [Theory]
@@ -23,6 +23,6 @@ public class PadraoDeBuscaTests
     [InlineData("   ")]
     public void PadraoDeBusca_SemTermo_RetornaNulo(string? busca)
     {
-        Assert.Null(ClienteRepository.PadraoDeBusca(busca));
+        Assert.Null(BuscaTextual.Padrao(busca));
     }
 }

@@ -21,6 +21,7 @@ docker compose up --build
 | http://localhost:8080/health/ready | Banco acessível (`200`) ou não (`503`) |
 | http://localhost:8080/auth/token | Emissão de token JWT (`POST`), sem versão e sem autenticação |
 | http://localhost:8080/api/v1/clientes | CRUD de clientes (`GET`, `POST`, `GET/PUT/DELETE /{id}`), com token |
+| http://localhost:8080/api/v1/produtos | Produtos (`GET`, `POST`, `GET/PUT /{id}`, `PATCH /{id}/estoque`), com token |
 | http://localhost:3000 | Grafana: logs da aplicação (login com `GRAFANA_ADMIN_USUARIO`/`GRAFANA_ADMIN_SENHA` do `.env`) |
 
 Exemplos prontos em [`requests.http`](requests.http).
@@ -161,6 +162,13 @@ se um endpoint receber repositório/`IUnitOfWork`/conexão ou se um caso de uso 
   inteiro (`/api/v1/clientes/42`, `"id": 42`); id não numérico na rota responde `400`. Ids são previsíveis, o que é
   aceitável porque todo `/api/v1` exige JWT. A migração `0002_clientes_id_inteiro` converteu a tabela `clientes` (antes
   com `uuid`) preservando os dados, com ids na ordem de cadastro.
+- **Produtos**: SKU normalizado (sem espaços nas pontas, maiúsculas, só `A-Z 0-9 - _ .`), único e imutável; `PUT` troca
+  só nome e preço. Limites explícitos para nenhuma entrada virar erro do banco: preço de 0 a 9.999.999.999,99 com até 2
+  casas (`10.999` → `400`, nunca arredondado) e devolvido sempre com 2 casas (`4.9` → `4.90`); estoque de 0 a 1.000.000.
+- **Ajuste de estoque atômico** (`PATCH /produtos/{id}/estoque` com `delta`): uma única instrução
+  `UPDATE ... SET estoque = estoque + @delta WHERE ... estoque::bigint + @delta BETWEEN 0 AND 1000000 RETURNING ...`.
+  Ajustes simultâneos nunca se perdem e um `PUT` concorrente não desfaz o estoque (grava só nome e preço). Fora do
+  intervalo → `422`; produto inexistente → `404`.
 - **Saídas por caso de uso**: `CriarClienteSaida`, `ObterClienteSaida` e `AtualizarClienteSaida` têm os mesmos campos de propósito —
   a convenção verificada pelo teste de arquitetura exige `<Nome>Saida` próprio, e cada caso de uso evolui sozinho.
 - **Datas com precisão de microssegundos** (a do `timestamptz`): o valor devolvido ao criar é idêntico ao lido depois.

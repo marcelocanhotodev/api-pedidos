@@ -87,7 +87,7 @@ public class ConversaoIdsInteirosTests(PostgresFixture postgres)
 
     private static async Task<List<(int Id, string Nome, string Email, DateTimeOffset CriadoEm)>> LerClientesAsync(string banco)
     {
-        await using var conexao = new NpgsqlConnection(banco);
+        await using var conexao = Banco.NovaConexao(banco);
         await conexao.OpenAsync();
         await using var comando = new NpgsqlCommand("SELECT id, nome, email, criado_em FROM clientes ORDER BY id", conexao);
         await using var leitor = await comando.ExecuteReaderAsync();
@@ -103,7 +103,7 @@ public class ConversaoIdsInteirosTests(PostgresFixture postgres)
     /// <summary>Colunas (ordem, tipo, nulidade, identity), constraints e índices da tabela clientes.</summary>
     private static async Task<string> DescreverEsquemaAsync(string banco)
     {
-        await using var conexao = new NpgsqlConnection(banco);
+        await using var conexao = Banco.NovaConexao(banco);
         await conexao.OpenAsync();
         await using var comando = new NpgsqlCommand("""
             SELECT string_agg(linha, E'\n' ORDER BY linha) FROM (

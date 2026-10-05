@@ -59,7 +59,7 @@ internal sealed class ClienteRepository(IDbSession sessao) : IClienteRepository
                OR nome ILIKE @padrao ESCAPE '\'
                OR email ILIKE @padrao ESCAPE '\'
             """;
-        var parametros = new { padrao = PadraoDeBusca(busca), deslocamento, quantidade };
+        var parametros = new { padrao = BuscaTextual.Padrao(busca), deslocamento, quantidade };
 
         var conexao = await sessao.ObterConexaoAsync(ct);
         var linhas = (await conexao.QueryAsync<ClienteLinha>(new CommandDefinition(
@@ -81,21 +81,6 @@ internal sealed class ClienteRepository(IDbSession sessao) : IClienteRepository
                 $"SELECT count(*) FROM clientes {Filtro}", parametros, sessao.Transacao, cancellationToken: ct));
 
         return new PaginaDeClientes(linhas.Select(l => l.ParaEntidade()).ToList(), total);
-    }
-
-    /// <summary>Monta <c>%termo%</c> com <c>\</c>, <c>%</c> e <c>_</c> escapados; nulo quando não há busca.</summary>
-    internal static string? PadraoDeBusca(string? busca)
-    {
-        if (string.IsNullOrWhiteSpace(busca))
-        {
-            return null;
-        }
-
-        var escapado = busca.Trim()
-            .Replace(@"\", @"\\", StringComparison.Ordinal)
-            .Replace("%", @"\%", StringComparison.Ordinal)
-            .Replace("_", @"\_", StringComparison.Ordinal);
-        return $"%{escapado}%";
     }
 
     private async Task<T> ExecutarTraduzindoConflitoAsync<T>(

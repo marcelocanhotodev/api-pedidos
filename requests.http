@@ -65,6 +65,60 @@ Content-Type: application/json
 DELETE {{baseUrl}}/api/v1/clientes/{{clienteId}}
 Authorization: Bearer {{accessToken}}
 
+### ---------- Produtos ----------
+
+### Criar produto -> 201 + Location (SKU normalizado, preço com 2 casas)
+# @name produtoCriado
+POST {{baseUrl}}/api/v1/produtos
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "sku": " cnt-azul-01 ",
+  "nome": "Caneta azul",
+  "preco": 4.9,
+  "estoque": 100
+}
+
+### Id do produto criado
+@produtoId = {{produtoCriado.response.body.id}}
+
+### Obter produto
+GET {{baseUrl}}/api/v1/produtos/{{produtoId}}
+Authorization: Bearer {{accessToken}}
+
+### Listar produtos (busca por nome ou SKU)
+GET {{baseUrl}}/api/v1/produtos?busca=cnt&pagina=1&tamanhoPagina=20
+Authorization: Bearer {{accessToken}}
+
+### Atualizar nome e preço (SKU e estoque não mudam)
+PUT {{baseUrl}}/api/v1/produtos/{{produtoId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "nome": "Caneta azul ponta fina",
+  "preco": 5.50
+}
+
+### Ajustar estoque (+10) -> 200 com o estoque resultante
+PATCH {{baseUrl}}/api/v1/produtos/{{produtoId}}/estoque
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "delta": 10
+}
+
+### Ajuste que deixaria o estoque negativo -> 422
+PATCH {{baseUrl}}/api/v1/produtos/{{produtoId}}/estoque
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "delta": -1000
+}
+
 ### Credenciais inválidas -> 401 problem+json
 POST {{baseUrl}}/auth/token
 Content-Type: application/json

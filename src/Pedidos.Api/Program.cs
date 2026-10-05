@@ -9,19 +9,24 @@ using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Json;
 
-Log.Logger = new LoggerConfiguration()
+// Logger local só para falhas de inicialização (antes de o host ter o seu). Nada de Log.Logger estático:
+// vários hosts no mesmo processo (testes de integração) não podem compartilhar nem fechar um logger global.
+await using var logDeInicializacao = new LoggerConfiguration()
     .WriteTo.Console(new JsonFormatter(renderMessage: true))
-    .CreateBootstrapLogger();
+    .CreateLogger();
 
 try
 {
     var builder = WebApplication.CreateBuilder(args);
 
-    builder.Host.UseSerilog((_, configuracao) => configuracao
-        .MinimumLevel.Information()
-        .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
-        .Enrich.FromLogContext()
-        .WriteTo.Console(new JsonFormatter(renderMessage: true)));
+    // preserveStaticLogger: cada host cria e descarta o próprio logger, sem tocar em Log.Logger.
+    builder.Host.UseSerilog(
+        (_, configuracao) => configuracao
+            .MinimumLevel.Information()
+            .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
+            .Enrich.FromLogContext()
+            .WriteTo.Console(new JsonFormatter(renderMessage: true)),
+        preserveStaticLogger: true);
 
     builder.Services
         .AddApplication()
@@ -60,12 +65,8 @@ try
 }
 catch (Exception ex) when (ex is not HostAbortedException)
 {
-    Log.Fatal(ex, "A aplicação encerrou por falha na inicialização");
+    logDeInicializacao.Fatal(ex, "A aplicação encerrou por falha na inicialização");
     return 1;
-}
-finally
-{
-    await Log.CloseAndFlushAsync();
 }
 
 #pragma warning disable CA1515 // Program precisa ser público para o WebApplicationFactory dos testes de integração.

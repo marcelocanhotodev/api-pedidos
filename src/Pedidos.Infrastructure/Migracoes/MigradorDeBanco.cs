@@ -19,8 +19,12 @@ public sealed class MigradorDeBanco(ILogger<MigradorDeBanco> logger)
     {
         var assembly = assemblyDosScripts ?? AssemblyPadrao;
 
+        // Migrações rodam uma vez no startup: sem pool, a conexão é fechada de fato ao terminar
+        // em vez de ficar ociosa no pool global do Npgsql ocupando uma conexão do PostgreSQL.
+        var semPool = new Npgsql.NpgsqlConnectionStringBuilder(connectionString) { Pooling = false }.ConnectionString;
+
         var upgrader = DeployChanges.To
-            .PostgresqlDatabase(connectionString)
+            .PostgresqlDatabase(semPool)
             .WithScriptsEmbeddedInAssembly(assembly, nome => nome.EndsWith(".sql", StringComparison.OrdinalIgnoreCase))
             .WithTransactionPerScript()
             .LogTo(new LogDoDbUp(logger))
