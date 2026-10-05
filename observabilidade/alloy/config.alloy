@@ -1,0 +1,71 @@
+// Coleta o stdout dos containers deste projeto Compose e envia ao Loki.
+// A API não sabe que o Loki existe: o contrato continua sendo "logs JSON no stdout".
+
+// Somente containers do projeto (rótulo definido pelo próprio Docker Compose).
+discovery.docker "projeto" {
+  host = "unix:///var/run/docker.sock"
+
+  filter {
+    name   = "label"
+    values = ["com.docker.compose.project=" + sys.env("PROJETO_COMPOSE")]
+  }
+}
+
+// Rótulos de baixa cardinalidade: o serviço de origem.
+discovery.relabel "projeto" {
+  targets = []
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "servico"
+  }
+}
+
+loki.source.docker "projeto" {
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.docker.projeto.targets
+  relabel_rules = discovery.relabel.projeto.rules
+  forward_to    = [loki.process.logs.receiver]
+}
+
+loki.process "logs" {
+  // Logs da API são JSON do Serilog (JsonFormatter).
+  stage.match {
+    selector = "{servico=\"api\"}"
+
+    stage.json {
+      expressions = {
+        nivel    = "Level",
+        trace_id = "TraceId",
+        momento  = "Timestamp",
+        caminho  = "Properties.RequestPath",
+      }
+    }
+
+    // Nível vira rótulo (poucos valores); traceId e caminho viram metadado estruturado.
+    stage.labels {
+      values = { nivel = "" }
+    }
+
+    stage.structured_metadata {
+      values = {
+        traceId = "trace_id",
+        caminho = "caminho",
+      }
+    }
+
+    // Ordem do Grafana = momento em que a aplicação escreveu o log.
+    stage.timestamp {
+      source = "momento"
+      format = "RFC3339Nano"
+    }
+  }
+
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

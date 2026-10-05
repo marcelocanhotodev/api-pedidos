@@ -1,3 +1,7 @@
+# Nome fixo do projeto: independe da pasta do clone e é usado pelo Alloy
+# para coletar apenas os logs dos containers deste projeto.
+name: api-pedidos
+
 services:
   postgres:
     image: postgres:16
@@ -27,9 +31,66 @@ services:
       AUTH_USUARIO: ${AUTH_USUARIO:?defina AUTH_USUARIO no .env}
       AUTH_SENHA: ${AUTH_SENHA:?defina AUTH_SENHA no .env}
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+    # A API não depende da observabilidade: os logs seguem no stdout mesmo sem Loki/Alloy.
     depends_on:
       postgres:
         condition: service_healthy
 
+  # ---------- Observabilidade de logs ----------
+
+  loki:
+    image: grafana/loki:3.7.8
+    command: ["-config.file=/etc/loki/config.yaml"]
+    volumes:
+      - ./observabilidade/loki/config.yaml:/etc/loki/config.yaml:ro
+      - loki-dados:/loki
+    # Imagem distroless (sem shell/wget): sem healthcheck próprio. O Alloy reenvia com
+    # backoff até o Loki ficar pronto e o Grafana só consulta sob demanda.
+
+  alloy:
+    image: grafana/alloy:v1.20.1
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    environment:
+      PROJETO_COMPOSE: ${COMPOSE_PROJECT_NAME}
+    volumes:
+      - ./observabilidade/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      # Posições de leitura: após reiniciar, o Alloy continua de onde parou (sem duplicar logs).
+      - alloy-dados:/var/lib/alloy/data
+      # Leitura dos logs pela API do Docker. Somente em desenvolvimento: dá acesso ao Docker do host.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+
+  grafana:
+    image: grafana/grafana:13.2.3
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USUARIO:?defina GRAFANA_ADMIN_USUARIO no .env}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_SENHA:?defina GRAFANA_ADMIN_SENHA no .env}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+    volumes:
+      - ./observabilidade/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observabilidade/grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana-dados:/var/lib/grafana
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    depends_on:
+      - loki
+
 volumes:
   pedidos-dados:
+  loki-dados:
+  alloy-dados:
+  grafana-dados:

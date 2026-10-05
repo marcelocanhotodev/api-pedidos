@@ -21,6 +21,7 @@ docker compose up --build
 | http://localhost:8080/health/ready | Banco acessível (`200`) ou não (`503`) |
 | http://localhost:8080/auth/token | Emissão de token JWT (`POST`), sem versão e sem autenticação |
 | http://localhost:8080/api/v1/clientes | CRUD de clientes (`GET`, `POST`, `GET/PUT/DELETE /{id}`), com token |
+| http://localhost:3000 | Grafana: logs da aplicação (login com `GRAFANA_ADMIN_USUARIO`/`GRAFANA_ADMIN_SENHA` do `.env`) |
 
 Exemplos prontos em [`requests.http`](requests.http).
 
@@ -44,6 +45,37 @@ curl -s -X POST http://localhost:8080/auth/token \
 - Credenciais erradas respondem `401` em `application/problem+json`; requisições sem token ou com token inválido também.
 - No Swagger, use **Authorize** e cole o `accessToken`.
 - **Limitação:** existe um único usuário, definido por `AUTH_USUARIO`/`AUTH_SENHA`. Não há cadastro de usuários, papéis nem refresh token.
+
+## Observabilidade (logs no Grafana)
+
+O `docker compose up` também sobe **Loki** (armazena os logs, 7 dias), **Grafana Alloy** (lê o stdout dos containers
+deste projeto pelo Docker) e **Grafana** em http://localhost:3000. A API não sabe que eles existem: continua escrevendo
+logs JSON no stdout, e segue funcionando mesmo com Loki ou Alloy parados.
+
+```
+api, postgres (stdout) --> Alloy --> Loki --> Grafana :3000
+```
+
+- Entre com `GRAFANA_ADMIN_USUARIO`/`GRAFANA_ADMIN_SENHA` (`admin`/`grafana_dev` no `.env.example`). A senha só é aplicada na
+  primeira subida; depois disso, troque pela interface ou recrie o volume (`docker compose down -v`).
+- Painel pronto: **Dashboards → API de Pedidos → API de Pedidos — Logs** (volume por nível, requisições 5xx e logs recentes
+  com filtro de nível).
+- Consultas livres em **Explore** (fonte de dados *Loki*, já configurada):
+
+| Objetivo | LogQL |
+|----------|-------|
+| Logs da API | `{servico="api"}` |
+| Só erros | `{servico="api", nivel="Error"}` |
+| Uma requisição pelo `traceId` (vem no corpo de todo `ProblemDetails`) | `{servico="api"} \| traceId="<traceId>"` |
+| Requisições que responderam 5xx | `{servico="api"} \| json \| Properties_StatusCode >= 500` |
+| Requisições lentas (> 500 ms) | `{servico="api"} \| json \| Properties_Elapsed > 500` |
+| Logs do PostgreSQL | `{servico="postgres"}` |
+
+- Rótulos indexados: `servico` (serviço do Compose) e `nivel` (nível do log da API). `traceId` e `caminho` são metadado
+  estruturado: filtráveis com `| traceId="..."`, sem criar uma série por requisição.
+- Verificação de ponta a ponta: `./observabilidade/verificar.sh` (gera `GET /info` e confirma que o log chegou ao Loki).
+- Custo: três containers a mais (algumas centenas de MB de memória). Para parar só a observabilidade:
+  `docker compose stop grafana alloy loki`.
 
 ## Como testar
 
@@ -127,6 +159,9 @@ se um endpoint receber repositório/`IUnitOfWork`/conexão ou se um caso de uso 
 - **Saídas por caso de uso**: `CriarClienteSaida`, `ObterClienteSaida` e `AtualizarClienteSaida` têm os mesmos campos de propósito —
   a convenção verificada pelo teste de arquitetura exige `<Nome>Saida` próprio, e cada caso de uso evolui sozinho.
 - **Datas com precisão de microssegundos** (a do `timestamptz`): o valor devolvido ao criar é idêntico ao lido depois.
+- **Logs coletados do stdout pelo Grafana Alloy**, sem sink do Loki na API: a API não depende da observabilidade e o
+  contrato continua sendo "logs JSON no stdout". Promtail foi descartado (descontinuado); o driver de log `loki` do Docker
+  também (exige plugin no host). O Compose tem nome fixo (`name: api-pedidos`) para o Alloy filtrar só os containers deste projeto.
 - **Espera pelo banco**: a API tenta conectar por até 30 s antes de migrar e encerra com código diferente de zero se o banco não responder.
 
 ## Fatias (changes OpenSpec)
@@ -169,3 +204,14 @@ Cenários da fundação que dependem do Docker em execução e não têm teste a
 | convencoes-api | Swagger disponível | `/swagger` carrega e lista `/info` |
 | seguranca | Chave ausente / Chave curta (processo) | `docker compose run --rm --no-deps -e JWT_CHAVE= api` encerra com código `1` e mensagem clara (também coberto por teste de integração) |
 | qualidade | Warning quebra o build | um warning proposital (ex.: variável não usada) faz `dotnet build` falhar |
+| observabilidade | Requisição aparece no Loki | `./observabilidade/verificar.sh` (aguarda o Loki pronto e acha o log de `GET /info` em até 30 s) |
+| observabilidade | Logs do banco coletados | `{servico="postgres"}` no Explore |
+| observabilidade | Somente containers do projeto | `docker run --rm busybox echo marca` não aparece em `{servico=~".+"} \|= "marca"` |
+| observabilidade | Loki indisponível / Subida sem dependência | `docker compose stop loki`; `GET /info` → `200` e o log segue em `docker compose logs api`; `api` não tem `depends_on` de observabilidade |
+| observabilidade | Fonte de dados pronta | Connections → Data sources → Loki → *Test* → "Data source successfully connected" |
+| observabilidade | Filtro por nível / Erros 5xx destacados | `docker compose stop postgres`, chamar `GET /api/v1/clientes` (→ `500`), religar; o erro aparece em `nivel="Error"` e no painel 5xx |
+| observabilidade | Rastreio por traceId | o `traceId` do `ProblemDetails` do passo anterior em `{servico="api"} \| traceId="..."` traz as linhas da requisição |
+| observabilidade | Acesso anônimo bloqueado | abrir http://localhost:3000/d/api-pedidos-logs sem login redireciona para `/login` |
+| observabilidade | Painel disponível após a subida | após `docker compose down -v` + `up`, o painel existe em Dashboards → API de Pedidos |
+| observabilidade | Logs preservados / Reset limpo | logs consultáveis após `down` + `up`; após `down -v` a consulta volta vazia |
+| observabilidade | Variável ausente / Login com credenciais | sem `GRAFANA_ADMIN_SENHA` o `docker compose up` falha com a mensagem da variável; com ela, o login entra sem pedir troca de senha |
