@@ -6,7 +6,7 @@ namespace Pedidos.Api.Endpoints.Clientes;
 
 public sealed class AtualizarClienteRequest : DadosDoClienteRequest
 {
-    public Guid Id { get; init; }
+    public int Id { get; init; }
 }
 
 public sealed class AtualizarClienteValidator : Validator<AtualizarClienteRequest>

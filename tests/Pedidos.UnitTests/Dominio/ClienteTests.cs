@@ -9,12 +9,11 @@ public class ClienteTests
     private static readonly DateTimeOffset Agora = new(2026, 10, 5, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public void Criar_DadosValidos_PreencheIdV7ECriadoEm()
+    public void Criar_DadosValidos_SemIdAteSerPersistidoEComCriadoEm()
     {
         var cliente = Cliente.Criar("Ana", "ana@x.com", Agora);
 
-        Assert.NotEqual(Guid.Empty, cliente.Id);
-        Assert.Equal(7, cliente.Id.Version);
+        Assert.Equal(0, cliente.Id);
         Assert.Equal(Agora, cliente.CriadoEm);
     }
 
@@ -91,7 +90,7 @@ public class ClienteTests
     [Fact]
     public void Restaurar_DadosDoBanco_ReconstroiSemAlterar()
     {
-        var id = Guid.NewGuid();
+        const int id = 42;
 
         var cliente = Cliente.Restaurar(id, "Ana", "Ana@X.com", Agora);
 

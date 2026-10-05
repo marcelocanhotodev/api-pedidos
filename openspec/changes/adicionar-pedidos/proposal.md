@@ -10,10 +10,10 @@ controle de concorrência. Com clientes e produtos já entregues, esta fatia tra
 - Concorrência otimista por `versao` no pedido.
 - Consulta por id e listagem paginada com filtros.
 - Casos de uso `CriarPedidoUseCase`, `ObterPedidoUseCase`, `ListarPedidosUseCase`, `PagarPedidoUseCase`, `EnviarPedidoUseCase`, `CancelarPedidoUseCase`.
-- Migração `0003_criar_pedidos.sql` (pedidos, itens e índices).
+- Migração `0004_criar_pedidos.sql` (pedidos, itens e índices), com ids `integer` autoincrementais e chaves estrangeiras inteiras.
 - Exclusão de cliente passa a ser bloqueada quando ele possui pedidos.
 
-Depende de: `adicionar-clientes` e `adicionar-produtos` (ambas arquivadas antes desta).
+Depende de: `adicionar-clientes`, `usar-ids-inteiros` e `adicionar-produtos` (todas arquivadas antes desta).
 
 ## Capabilities
 
@@ -27,4 +27,4 @@ Depende de: `adicionar-clientes` e `adicionar-produtos` (ambas arquivadas antes 
 ## Impact
 - Código: `Domain/Entidades/{Pedido,ItemPedido}`, `Enums/StatusPedido`, `Regras/` (desconto), `CasosDeUso/Pedidos/*`,
   `PedidoRepository`, `Api/Endpoints/Pedidos/*`; `ExcluirClienteUseCase` ganha dependência de `IPedidoRepository`.
-- Banco: tabelas `pedidos` e `itens_pedido` com chaves estrangeiras para `clientes` e `produtos` (script `0003`).
+- Banco: tabelas `pedidos` e `itens_pedido` com chaves estrangeiras para `clientes` e `produtos` (script `0004`).

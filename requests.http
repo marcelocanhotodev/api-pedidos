@@ -30,7 +30,7 @@ Content-Type: application/json
   "email": "ana@exemplo.com"
 }
 
-### Id do cliente criado
+### Id do cliente criado (inteiro gerado pelo banco, ex.: 42)
 @clienteId = {{clienteCriado.response.body.id}}
 
 ### Obter cliente

@@ -6,7 +6,7 @@
 
 ## 2. Persistência
 
-- [ ] 2.1 Script `0003_criar_pedidos.sql` com `pedidos`, `itens_pedido`, chaves estrangeiras, `check` e os quatro índices (ver design.md); verificar no teste de integração que tabelas e índices existem
+- [ ] 2.1 Script `0004_criar_pedidos.sql` com `pedidos`, `itens_pedido` (ids `integer` identity), chaves estrangeiras `integer`, `check` e os quatro índices (ver design.md); verificar no teste de integração que tabelas e índices existem
 - [ ] 2.2 `PedidoRepository` (Dapper): inserir pedido com itens, obter com itens, listar com filtros paginados e atualizar status com `versao` (zero linhas → `ConflitoException`); verificar com testes de integração do repositório
 - [ ] 2.3 Baixa atômica (`estoque >= @q`) e devolução de estoque no `ProdutoRepository`, em ordem de `produto_id`; verificar com teste de integração de estoque insuficiente
 

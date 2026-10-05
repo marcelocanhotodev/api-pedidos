@@ -16,21 +16,25 @@ public class CriarClienteUseCaseTests
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
     private readonly Mock<IRelogio> _relogio = new();
 
-    public CriarClienteUseCaseTests() => _relogio.SetupGet(r => r.AgoraUtc).Returns(Agora);
+    public CriarClienteUseCaseTests()
+    {
+        _relogio.SetupGet(r => r.AgoraUtc).Returns(Agora);
+        // O repositório devolve o cliente persistido, com o id gerado pelo banco.
+        _clientes.Setup(c => c.InserirAsync(It.IsAny<Cliente>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Cliente c, CancellationToken _) => Cliente.Restaurar(IdGerado, c.Nome, c.Email, c.CriadoEm));
+    }
+
+    private const int IdGerado = 42;
 
     private CriarClienteUseCase CriarCasoDeUso() => new(_clientes.Object, _unitOfWork.Object, _relogio.Object);
 
     [Fact]
-    public async Task ExecutarAsync_DadosValidos_InsereEConfirmaTransacao()
+    public async Task ExecutarAsync_DadosValidos_InsereEDevolveIdGeradoPeloBanco()
     {
-        Cliente? inserido = null;
-        _clientes.Setup(c => c.InserirAsync(It.IsAny<Cliente>(), It.IsAny<CancellationToken>()))
-            .Callback<Cliente, CancellationToken>((c, _) => inserido = c);
-
         var saida = await CriarCasoDeUso().ExecutarAsync(new CriarClienteEntrada("Ana", "ana@x.com"), CancellationToken.None);
 
-        Assert.NotNull(inserido);
-        Assert.Equal(new CriarClienteSaida(inserido.Id, "Ana", "ana@x.com", Agora), saida);
+        Assert.Equal(new CriarClienteSaida(IdGerado, "Ana", "ana@x.com", Agora), saida);
+        _clientes.Verify(c => c.InserirAsync(It.Is<Cliente>(x => x.Id == 0 && x.Nome == "Ana"), It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(u => u.RollbackAsync(It.IsAny<CancellationToken>()), Times.Never);
     }

@@ -12,7 +12,7 @@ public sealed partial class Cliente
     public const int NomeTamanhoMaximo = 150;
     public const int EmailTamanhoMaximo = 200;
 
-    private Cliente(Guid id, string nome, string email, DateTimeOffset criadoEm)
+    private Cliente(int id, string nome, string email, DateTimeOffset criadoEm)
     {
         Id = id;
         Nome = nome;
@@ -20,7 +20,8 @@ public sealed partial class Cliente
         CriadoEm = criadoEm;
     }
 
-    public Guid Id { get; }
+    /// <summary>Gerado pelo banco; 0 enquanto o cliente não foi persistido.</summary>
+    public int Id { get; }
 
     public string Nome { get; private set; }
 
@@ -28,16 +29,16 @@ public sealed partial class Cliente
 
     public DateTimeOffset CriadoEm { get; }
 
-    /// <summary>Cria um novo cliente com id ordenado no tempo (UUID v7).</summary>
+    /// <summary>Cria um novo cliente, ainda sem id (o banco gera o id ao inserir).</summary>
     /// <exception cref="RegraDeNegocioException">Nome ou e-mail inválido.</exception>
     public static Cliente Criar(string nome, string email, DateTimeOffset agora)
     {
         var (nomeNormalizado, emailNormalizado) = Validar(nome, email);
-        return new Cliente(Guid.CreateVersion7(agora), nomeNormalizado, emailNormalizado, agora);
+        return new Cliente(0, nomeNormalizado, emailNormalizado, agora);
     }
 
     /// <summary>Reconstrói um cliente já persistido, sem revalidar.</summary>
-    public static Cliente Restaurar(Guid id, string nome, string email, DateTimeOffset criadoEm) =>
+    public static Cliente Restaurar(int id, string nome, string email, DateTimeOffset criadoEm) =>
         new(id, nome, email, criadoEm);
 
     /// <summary>Substitui nome e e-mail.</summary>

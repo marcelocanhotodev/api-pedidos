@@ -5,7 +5,7 @@ using Pedidos.Domain.Entidades;
 namespace Pedidos.Api.Endpoints.Clientes;
 
 /// <summary>Representação de um cliente nas respostas da API.</summary>
-public sealed record ClienteResponse(Guid Id, string Nome, string Email, DateTimeOffset CriadoEm);
+public sealed record ClienteResponse(int Id, string Nome, string Email, DateTimeOffset CriadoEm);
 
 /// <summary>Campos editáveis do cliente, comuns à criação e à atualização.</summary>
 public abstract class DadosDoClienteRequest
@@ -18,7 +18,7 @@ public abstract class DadosDoClienteRequest
 /// <summary>Request dos endpoints que recebem apenas o id do cliente pela rota.</summary>
 public sealed class ClientePorIdRequest
 {
-    public Guid Id { get; init; }
+    public int Id { get; init; }
 }
 
 public static class ClienteValidacao

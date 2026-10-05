@@ -22,8 +22,8 @@ public sealed class CriarClienteUseCase(IClienteRepository clientes, IUnitOfWork
                     throw new ConflitoException($"Já existe um cliente com o e-mail '{cliente.Email}'.");
                 }
 
-                await clientes.InserirAsync(cliente, ct);
-                return new CriarClienteSaida(cliente.Id, cliente.Nome, cliente.Email, cliente.CriadoEm);
+                var persistido = await clientes.InserirAsync(cliente, ct);
+                return new CriarClienteSaida(persistido.Id, persistido.Nome, persistido.Email, persistido.CriadoEm);
             },
             ct);
     }

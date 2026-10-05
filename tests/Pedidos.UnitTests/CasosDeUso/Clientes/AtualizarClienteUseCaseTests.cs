@@ -11,7 +11,7 @@ namespace Pedidos.UnitTests.CasosDeUso.Clientes;
 public class AtualizarClienteUseCaseTests
 {
     private static readonly DateTimeOffset CriadoEm = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
-    private static readonly Guid Id = Guid.CreateVersion7();
+    private const int Id = 7;
 
     private readonly Mock<IClienteRepository> _clientes = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
@@ -57,7 +57,7 @@ public class AtualizarClienteUseCaseTests
     public async Task ExecutarAsync_ClienteInexistente_LancaNaoEncontrado()
     {
         await Assert.ThrowsAsync<NaoEncontradoException>(
-            () => CriarCasoDeUso().ExecutarAsync(new AtualizarClienteEntrada(Guid.NewGuid(), "Ana", "ana@x.com"), CancellationToken.None));
+            () => CriarCasoDeUso().ExecutarAsync(new AtualizarClienteEntrada(999, "Ana", "ana@x.com"), CancellationToken.None));
 
         _unitOfWork.Verify(u => u.RollbackAsync(It.IsAny<CancellationToken>()), Times.Once);
     }

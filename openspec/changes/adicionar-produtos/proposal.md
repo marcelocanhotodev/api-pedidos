@@ -8,9 +8,9 @@ deixa a fatia de pedidos concentrada só nas regras do pedido.
 - CRUD de produtos em `/api/v1/produtos` (sem exclusão), com listagem paginada e busca.
 - Ajuste manual de estoque por `PATCH /api/v1/produtos/{id}/estoque`.
 - Casos de uso `CriarProdutoUseCase`, `ObterProdutoUseCase`, `ListarProdutosUseCase`, `AtualizarProdutoUseCase`, `AjustarEstoqueProdutoUseCase`.
-- Entidade `Produto`, `IProdutoRepository` e migração `0002_criar_produtos.sql`.
+- Entidade `Produto`, `IProdutoRepository` e migração `0003_criar_produtos.sql` (a `0002` é a conversão de ids de `usar-ids-inteiros`).
 
-Depende de: `adicionar-fundacao` e `adicionar-seguranca`. Independente de `adicionar-clientes`.
+Depende de: `adicionar-fundacao`, `adicionar-seguranca` e `usar-ids-inteiros`.
 
 ## Capabilities
 
@@ -22,4 +22,4 @@ _Nenhuma._
 
 ## Impact
 - Código: `Domain/Entidades/Produto`, `CasosDeUso/Produtos/*`, `Infrastructure/Dados/Repositorios/ProdutoRepository`, `Api/Endpoints/Produtos/*`.
-- Banco: tabela `produtos` (script `0002`).
+- Banco: tabela `produtos` com `id integer` autoincremental (script `0003`).

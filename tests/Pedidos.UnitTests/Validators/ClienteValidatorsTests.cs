@@ -40,7 +40,7 @@ public class ClienteValidatorsTests
     [Fact]
     public void Atualizar_NomeAcimaDoLimite_AcusaNome()
     {
-        new AtualizarClienteValidator().TestValidate(new AtualizarClienteRequest { Id = Guid.NewGuid(), Nome = new string('a', 151), Email = "ana@x.com" })
+        new AtualizarClienteValidator().TestValidate(new AtualizarClienteRequest { Id = 1, Nome = new string('a', 151), Email = "ana@x.com" })
             .ShouldHaveValidationErrorFor(r => r.Nome);
     }
 

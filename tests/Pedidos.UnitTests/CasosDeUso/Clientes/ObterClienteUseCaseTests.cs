@@ -14,7 +14,7 @@ public class ObterClienteUseCaseTests
     [Fact]
     public async Task ExecutarAsync_ClienteExiste_RetornaCliente()
     {
-        var id = Guid.CreateVersion7();
+        const int id = 7;
         var criadoEm = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
         _clientes.Setup(c => c.ObterAsync(id, It.IsAny<CancellationToken>())).ReturnsAsync(Cliente.Restaurar(id, "Ana", "ana@x.com", criadoEm));
 
@@ -27,7 +27,7 @@ public class ObterClienteUseCaseTests
     public async Task ExecutarAsync_ClienteInexistente_LancaNaoEncontrado()
     {
         var excecao = await Assert.ThrowsAsync<NaoEncontradoException>(
-            () => new ObterClienteUseCase(_clientes.Object).ExecutarAsync(new ObterClienteEntrada(Guid.NewGuid()), CancellationToken.None));
+            () => new ObterClienteUseCase(_clientes.Object).ExecutarAsync(new ObterClienteEntrada(999), CancellationToken.None));
 
         Assert.Equal("Cliente", excecao.Recurso);
     }

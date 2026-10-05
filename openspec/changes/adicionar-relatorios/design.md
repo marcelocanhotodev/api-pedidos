@@ -21,7 +21,7 @@ montar entidades `Pedido` para somar totais seria lento e sem propósito. Esta f
   para o último pedido → posição com `ROW_NUMBER() OVER (ORDER BY total_gasto DESC, primeiro_pedido_em ASC)`,
   que garante posições consecutivas no desempate exigido pela spec. `LIMIT @top`.
 - **`ticketMedio`** calculado no SQL (`round(total_gasto / quantidade_pedidos, 2)`).
-- **Índices.** Reaproveita `pedidos(status)` e `pedidos(cliente_id, criado_em desc)` criados em `0003`; a spec desta
+- **Índices.** Reaproveita `pedidos(status)` e `pedidos(cliente_id, criado_em desc)` criados em `0004`; a spec desta
   fatia só verifica que existem.
 
 ## Risks / Trade-offs

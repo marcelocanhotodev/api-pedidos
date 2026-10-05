@@ -155,7 +155,12 @@ se um endpoint receber repositório/`IUnitOfWork`/conexão ou se um caso de uso 
   credenciais comparadas pelo SHA-256 em tempo constante.
 - **Clientes**: a entidade `Cliente` normaliza (sem espaços nas pontas) e valida nome/e-mail em qualquer caminho, não só no HTTP.
   E-mail único sem diferenciar maiúsculas: checagem no caso de uso e índice único em `lower(email)` para corridas (`23505` → `409`).
-  Busca com `ILIKE` tratando `%`, `_` e `\` como literais; listagem ordenada por `nome, id` para páginas estáveis; ids UUID v7.
+  Busca com `ILIKE` tratando `%`, `_` e `\` como literais; listagem ordenada por `nome, id` para páginas estáveis.
+- **Ids inteiros autoincrementais**: toda tabela tem `id integer GENERATED ALWAYS AS IDENTITY`, gerado pelo banco e
+  devolvido pelo `INSERT ... RETURNING id`; relações são `<entidade>_id integer` com chave estrangeira. A API expõe o mesmo
+  inteiro (`/api/v1/clientes/42`, `"id": 42`); id não numérico na rota responde `400`. Ids são previsíveis, o que é
+  aceitável porque todo `/api/v1` exige JWT. A migração `0002_clientes_id_inteiro` converteu a tabela `clientes` (antes
+  com `uuid`) preservando os dados, com ids na ordem de cadastro.
 - **Saídas por caso de uso**: `CriarClienteSaida`, `ObterClienteSaida` e `AtualizarClienteSaida` têm os mesmos campos de propósito —
   a convenção verificada pelo teste de arquitetura exige `<Nome>Saida` próprio, e cada caso de uso evolui sozinho.
 - **Datas com precisão de microssegundos** (a do `timestamptz`): o valor devolvido ao criar é idêntico ao lido depois.

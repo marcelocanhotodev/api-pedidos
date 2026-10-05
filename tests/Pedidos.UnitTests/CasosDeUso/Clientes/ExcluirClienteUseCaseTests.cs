@@ -17,7 +17,7 @@ public class ExcluirClienteUseCaseTests
     [Fact]
     public async Task ExecutarAsync_ClienteExiste_ExcluiEConfirma()
     {
-        var id = Guid.CreateVersion7();
+        const int id = 7;
         _clientes.Setup(c => c.ExcluirAsync(id, It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
         var saida = await CriarCasoDeUso().ExecutarAsync(new ExcluirClienteEntrada(id), CancellationToken.None);
@@ -30,7 +30,7 @@ public class ExcluirClienteUseCaseTests
     public async Task ExecutarAsync_ClienteInexistente_LancaNaoEncontradoEDesfaz()
     {
         await Assert.ThrowsAsync<NaoEncontradoException>(
-            () => CriarCasoDeUso().ExecutarAsync(new ExcluirClienteEntrada(Guid.NewGuid()), CancellationToken.None));
+            () => CriarCasoDeUso().ExecutarAsync(new ExcluirClienteEntrada(999), CancellationToken.None));
 
         _unitOfWork.Verify(u => u.RollbackAsync(It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);

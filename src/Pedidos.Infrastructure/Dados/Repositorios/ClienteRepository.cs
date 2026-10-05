@@ -11,33 +11,39 @@ internal sealed class ClienteRepository(IDbSession sessao) : IClienteRepository
     private const string IndiceEmailUnico = "ux_clientes_email";
     private const string Colunas = "id, nome, email, criado_em";
 
-    public async Task<Cliente?> ObterAsync(Guid id, CancellationToken ct)
+    public async Task<Cliente?> ObterAsync(int id, CancellationToken ct)
     {
         var linha = await QuerySingleOrDefaultAsync<ClienteLinha>(
             $"SELECT {Colunas} FROM clientes WHERE id = @id", new { id }, ct);
         return linha?.ParaEntidade();
     }
 
-    public async Task<bool> ExisteEmailAsync(string email, Guid? ignorarId, CancellationToken ct)
+    public async Task<bool> ExisteEmailAsync(string email, int? ignorarId, CancellationToken ct)
     {
         const string Sql = """
             SELECT EXISTS (
                 SELECT 1 FROM clientes
-                WHERE lower(email) = lower(@email) AND (@ignorarId::uuid IS NULL OR id <> @ignorarId))
+                WHERE lower(email) = lower(@email) AND (@ignorarId::integer IS NULL OR id <> @ignorarId))
             """;
         var conexao = await sessao.ObterConexaoAsync(ct);
         return await conexao.ExecuteScalarAsync<bool>(new CommandDefinition(Sql, new { email, ignorarId }, sessao.Transacao, cancellationToken: ct));
     }
 
-    public Task InserirAsync(Cliente cliente, CancellationToken ct) =>
-        ExecutarTraduzindoConflitoAsync(
-            $"INSERT INTO clientes ({Colunas}) VALUES (@Id, @Nome, @Email, @CriadoEm)", cliente, ct);
+    public async Task<Cliente> InserirAsync(Cliente cliente, CancellationToken ct)
+    {
+        // O id é gerado pelo banco (identity) e devolvido no próprio INSERT.
+        var id = await ExecutarTraduzindoConflitoAsync(
+            (conexao, comando) => conexao.ExecuteScalarAsync<int>(comando),
+            "INSERT INTO clientes (nome, email, criado_em) VALUES (@Nome, @Email, @CriadoEm) RETURNING id", cliente, ct);
+        return Cliente.Restaurar(id, cliente.Nome, cliente.Email, cliente.CriadoEm);
+    }
 
     public Task AtualizarAsync(Cliente cliente, CancellationToken ct) =>
         ExecutarTraduzindoConflitoAsync(
+            (conexao, comando) => conexao.ExecuteAsync(comando),
             "UPDATE clientes SET nome = @Nome, email = @Email WHERE id = @Id", cliente, ct);
 
-    public async Task<bool> ExcluirAsync(Guid id, CancellationToken ct)
+    public async Task<bool> ExcluirAsync(int id, CancellationToken ct)
     {
         var conexao = await sessao.ObterConexaoAsync(ct);
         var afetadas = await conexao.ExecuteAsync(new CommandDefinition(
@@ -92,14 +98,15 @@ internal sealed class ClienteRepository(IDbSession sessao) : IClienteRepository
         return $"%{escapado}%";
     }
 
-    private async Task ExecutarTraduzindoConflitoAsync(string sql, Cliente cliente, CancellationToken ct)
+    private async Task<T> ExecutarTraduzindoConflitoAsync<T>(
+        Func<NpgsqlConnection, CommandDefinition, Task<T>> executar, string sql, Cliente cliente, CancellationToken ct)
     {
         var conexao = await sessao.ObterConexaoAsync(ct);
         var parametros = new { cliente.Id, cliente.Nome, cliente.Email, cliente.CriadoEm };
 
         try
         {
-            await conexao.ExecuteAsync(new CommandDefinition(sql, parametros, sessao.Transacao, cancellationToken: ct));
+            return await executar(conexao, new CommandDefinition(sql, parametros, sessao.Transacao, cancellationToken: ct));
         }
         catch (PostgresException ex) when (ex is { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: IndiceEmailUnico })
         {
@@ -115,7 +122,7 @@ internal sealed class ClienteRepository(IDbSession sessao) : IClienteRepository
 
     private sealed class ClienteLinha
     {
-        public Guid Id { get; init; }
+        public int Id { get; init; }
 
         public string Nome { get; init; } = string.Empty;
 

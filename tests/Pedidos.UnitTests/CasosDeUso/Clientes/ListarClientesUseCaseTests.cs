@@ -16,7 +16,7 @@ public class ListarClientesUseCaseTests
     [Fact]
     public async Task ExecutarAsync_Pagina2Tamanho2_ConsultaComDeslocamentoEMontaEnvelope()
     {
-        var cliente = Cliente.Restaurar(Guid.CreateVersion7(), "Ana", "ana@x.com", CriadoEm);
+        var cliente = Cliente.Restaurar(1, "Ana", "ana@x.com", CriadoEm);
         _clientes.Setup(c => c.ListarAsync(null, 2, 2, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PaginaDeClientes([cliente], Total: 5));
 

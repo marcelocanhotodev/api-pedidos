@@ -36,7 +36,8 @@ Pedidos.Api  ──►  Pedidos.Application  ──►  Pedidos.Domain
 ## Convenções
 - Nomes de domínio, tabelas, colunas, rotas e campos JSON em **português** (ex.: `clientes`, `precoUnitario`).
 - Código: SOLID, Clean Code, `nullable` habilitado, async de ponta a ponta (sem `.Result`/`.Wait()`).
-- Banco: `snake_case`, tabelas no plural, chaves `uuid`, datas em UTC (`timestamptz`).
+- Banco: `snake_case`, tabelas no plural, chave primária `id integer` autoincremental (`GENERATED ALWAYS AS IDENTITY`), relações por `<entidade>_id integer` com chave estrangeira, datas em UTC (`timestamptz`).
+- API: o `id` exposto em rotas e JSON é o mesmo inteiro da chave primária.
 - JSON em camelCase; rotas em kebab-case, prefixo `/api/v1`.
 - Git: trunk-based, branches curtas `feature/*`, Conventional Commits, PRs pequenos.
 - Configuração somente por variáveis de ambiente; nenhum segredo no repositório.

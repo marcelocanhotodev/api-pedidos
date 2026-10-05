@@ -30,16 +30,16 @@ alteram dois agregados na mesma transação (pedido + estoque de produtos).
   entre pedidos com os mesmos produtos.
 - **Preço histórico.** `itens_pedido.preco_unitario` é copiado do produto na criação e nunca recalculado.
 - **Índices junto com a tabela.** `pedidos(cliente_id, criado_em desc)`, `pedidos(status)`, `itens_pedido(pedido_id)` e
-  `itens_pedido(produto_id)` entram no próprio `0003`, pois a listagem filtrada já depende deles;
+  `itens_pedido(produto_id)` entram no próprio `0004`, pois a listagem filtrada já depende deles;
   `adicionar-relatorios` apenas verifica que existem.
 - **Exclusão de cliente.** `ExcluirClienteUseCase` consulta `IPedidoRepository.ExisteParaClienteAsync`; a chave
   estrangeira `pedidos.cliente_id` (sem cascade) garante a regra mesmo sob concorrência, com a violação traduzida em 409.
 
-## Modelo de dados (script `0003_criar_pedidos.sql`)
+## Modelo de dados (script `0004_criar_pedidos.sql`)
 | Tabela | Colunas |
 |--------|---------|
-| `pedidos` | `id uuid pk`, `cliente_id uuid fk → clientes`, `status varchar(20) not null`, `subtotal numeric(12,2)`, `desconto numeric(12,2)`, `total numeric(12,2)`, `versao int not null default 1`, `criado_em timestamptz not null` |
-| `itens_pedido` | `id uuid pk`, `pedido_id uuid fk → pedidos on delete cascade`, `produto_id uuid fk → produtos`, `quantidade int not null check (quantidade > 0)`, `preco_unitario numeric(12,2) not null` |
+| `pedidos` | `id integer generated always as identity pk`, `cliente_id integer fk → clientes (id)`, `status varchar(20) not null`, `subtotal numeric(12,2)`, `desconto numeric(12,2)`, `total numeric(12,2)`, `versao int not null default 1`, `criado_em timestamptz not null` |
+| `itens_pedido` | `id integer generated always as identity pk`, `pedido_id integer fk → pedidos (id) on delete cascade`, `produto_id integer fk → produtos (id)`, `quantidade int not null check (quantidade > 0)`, `preco_unitario numeric(12,2) not null` |
 
 ## Risks / Trade-offs
 

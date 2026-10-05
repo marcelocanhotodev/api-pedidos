@@ -67,15 +67,15 @@ public sealed class ClienteRepositoryTests(PostgresFixture postgres) : IAsyncLif
     {
         await using var escopo = _factory.Services.CreateAsyncScope();
         var repositorio = escopo.ServiceProvider.GetRequiredService<IClienteRepository>();
-        var clientes = Enumerable.Range(0, 4).Select(i => Cliente.Criar("Igual", $"igual{i}@x.com", Agora.AddSeconds(i))).ToList();
-        foreach (var cliente in clientes.AsEnumerable().Reverse())
+        var ids = new List<int>();
+        for (var i = 0; i < 4; i++)
         {
-            await repositorio.InserirAsync(cliente, CancellationToken.None);
+            ids.Add((await repositorio.InserirAsync(Cliente.Criar("Igual", $"igual{i}@x.com", Agora), CancellationToken.None)).Id);
         }
 
         var pagina = await repositorio.ListarAsync(null, 0, 10, CancellationToken.None);
 
-        Assert.Equal(clientes.Select(c => c.Id).Order(), pagina.Itens.Select(c => c.Id));
+        Assert.Equal(ids.Order(), pagina.Itens.Select(c => c.Id));
         Assert.Equal(4, pagina.Total);
     }
 
@@ -84,10 +84,48 @@ public sealed class ClienteRepositoryTests(PostgresFixture postgres) : IAsyncLif
     {
         await using var escopo = _factory.Services.CreateAsyncScope();
         var repositorio = escopo.ServiceProvider.GetRequiredService<IClienteRepository>();
-        var cliente = Cliente.Criar("Ana", "ana@x.com", Agora);
-        await repositorio.InserirAsync(cliente, CancellationToken.None);
+        var cliente = await repositorio.InserirAsync(Cliente.Criar("Ana", "ana@x.com", Agora), CancellationToken.None);
 
         Assert.True(await repositorio.ExisteEmailAsync("ANA@x.com", null, CancellationToken.None));
         Assert.False(await repositorio.ExisteEmailAsync("ANA@x.com", cliente.Id, CancellationToken.None));
+    }
+
+    // --- Chaves primárias inteiras ---
+
+    [Fact]
+    public async Task Inserir_DoisClientes_DevolveIdsInteirosCrescentesGeradosPeloBanco()
+    {
+        await using var escopo = _factory.Services.CreateAsyncScope();
+        var repositorio = escopo.ServiceProvider.GetRequiredService<IClienteRepository>();
+
+        var primeiro = await repositorio.InserirAsync(Cliente.Criar("Ana", "ana@x.com", Agora), CancellationToken.None);
+        var segundo = await repositorio.InserirAsync(Cliente.Criar("Bia", "bia@x.com", Agora), CancellationToken.None);
+
+        Assert.True(primeiro.Id > 0);
+        Assert.True(segundo.Id > primeiro.Id);
+        Assert.Equal("Bia", (await repositorio.ObterAsync(segundo.Id, CancellationToken.None))!.Nome);
+    }
+
+    [Fact]
+    public async Task Esquema_IdDeClientes_EhIntegerIdentityAlways()
+    {
+        _ = _factory.Services;
+
+        Assert.Equal(1, await Banco.ContarAsync(_banco, """
+            SELECT count(*) FROM information_schema.columns
+            WHERE table_name = 'clientes' AND column_name = 'id'
+              AND data_type = 'integer' AND is_identity = 'YES' AND identity_generation = 'ALWAYS'
+            """));
+    }
+
+    [Fact]
+    public async Task Esquema_InsertInformandoId_EhRecusadoPeloBanco()
+    {
+        _ = _factory.Services;
+
+        var excecao = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => Banco.ExecutarAsync(_banco,
+            "INSERT INTO clientes (id, nome, email, criado_em) VALUES (12345, 'Ana', 'ana@x.com', now())"));
+
+        Assert.Equal("428C9", excecao.SqlState); // generated_always
     }
 }

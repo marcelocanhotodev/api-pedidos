@@ -9,6 +9,7 @@ namespace Pedidos.IntegrationTests;
 [Collection(ColecaoPostgres.Nome)]
 public sealed class ClientesTests(PostgresFixture postgres) : IAsyncLifetime
 {
+    private const int IdInexistente = 999999;
     private static readonly Uri Rota = new("/api/v1/clientes", UriKind.Relative);
 
     private ApiFactory _factory = null!;
@@ -35,7 +36,7 @@ public sealed class ClientesTests(PostgresFixture postgres) : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
         var cliente = await LerAsync(resposta);
-        var id = cliente.GetProperty("id").GetGuid();
+        var id = cliente.GetProperty("id").GetInt32();
         Assert.Equal($"/api/v1/clientes/{id}", resposta.Headers.Location?.OriginalString);
         Assert.Equal("Ana", cliente.GetProperty("nome").GetString());
         Assert.True(cliente.TryGetProperty("criadoEm", out _));
@@ -93,12 +94,42 @@ public sealed class ClientesTests(PostgresFixture postgres) : IAsyncLifetime
         }
     }
 
+    // --- Identificadores numéricos ---
+
+    [Fact]
+    public async Task Criar_IdNoJsonENoLocation_EhNumeroInteiro()
+    {
+        var resposta = await _api.PostAsJsonAsync(Rota, new { nome = "Ana", email = "ana@x.com" });
+
+        var cliente = await LerAsync(resposta);
+        Assert.Equal(JsonValueKind.Number, cliente.GetProperty("id").ValueKind);
+        Assert.Equal($"/api/v1/clientes/{cliente.GetProperty("id").GetInt32()}", resposta.Headers.Location?.OriginalString);
+    }
+
+    [Theory]
+    [InlineData("GET")]
+    [InlineData("PUT")]
+    [InlineData("DELETE")]
+    public async Task Rota_IdNaoNumerico_Responde400IndicandoId(string metodo)
+    {
+        using var requisicao = new HttpRequestMessage(new HttpMethod(metodo), new Uri("/api/v1/clientes/abc", UriKind.Relative))
+        {
+            Content = metodo == "PUT" ? JsonContent.Create(new { nome = "Ana", email = "ana@x.com" }) : null,
+        };
+
+        var resposta = await _api.SendAsync(requisicao);
+
+        Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+        Assert.Equal("application/problem+json", resposta.Content.Headers.ContentType?.MediaType);
+        Assert.True((await LerAsync(resposta)).GetProperty("errors").TryGetProperty("id", out _));
+    }
+
     // --- Consultar ---
 
     [Fact]
     public async Task Obter_IdInexistente_Responde404ProblemDetails()
     {
-        var resposta = await _api.GetAsync(new Uri($"/api/v1/clientes/{Guid.NewGuid()}", UriKind.Relative));
+        var resposta = await _api.GetAsync(new Uri($"/api/v1/clientes/{IdInexistente}", UriKind.Relative));
 
         Assert.Equal(HttpStatusCode.NotFound, resposta.StatusCode);
         Assert.Equal("application/problem+json", resposta.Content.Headers.ContentType?.MediaType);
@@ -146,17 +177,17 @@ public sealed class ClientesTests(PostgresFixture postgres) : IAsyncLifetime
     [Fact]
     public async Task Listar_NomesRepetidos_CadaUmApareceUmaVezEntrePaginas()
     {
-        var ids = new List<Guid>();
+        var ids = new List<int>();
         for (var i = 0; i < 3; i++)
         {
-            ids.Add((await CriarAsync("Ana Souza", $"ana{i}@x.com")).GetProperty("id").GetGuid());
+            ids.Add((await CriarAsync("Ana Souza", $"ana{i}@x.com")).GetProperty("id").GetInt32());
         }
 
-        var vistos = new List<Guid>();
+        var vistos = new List<int>();
         for (var pagina = 1; pagina <= 3; pagina++)
         {
             var corpo = await LerAsync(await _api.GetAsync(new Uri($"/api/v1/clientes?tamanhoPagina=1&pagina={pagina}", UriKind.Relative)));
-            vistos.AddRange(corpo.GetProperty("itens").EnumerateArray().Select(c => c.GetProperty("id").GetGuid()));
+            vistos.AddRange(corpo.GetProperty("itens").EnumerateArray().Select(c => c.GetProperty("id").GetInt32()));
         }
 
         Assert.Equal(ids.Order(), vistos.Order());
@@ -179,7 +210,7 @@ public sealed class ClientesTests(PostgresFixture postgres) : IAsyncLifetime
     [Fact]
     public async Task Atualizar_DadosValidos_Responde200ComClienteAtualizado()
     {
-        var id = (await CriarAsync("Ana", "ana@x.com")).GetProperty("id").GetGuid();
+        var id = (await CriarAsync("Ana", "ana@x.com")).GetProperty("id").GetInt32();
 
         var resposta = await _api.PutAsJsonAsync(new Uri($"/api/v1/clientes/{id}", UriKind.Relative), new { nome = "Ana Souza", email = "ana.souza@x.com" });
 
@@ -191,7 +222,7 @@ public sealed class ClientesTests(PostgresFixture postgres) : IAsyncLifetime
     public async Task Atualizar_EmailDeOutroCliente_Responde409()
     {
         await CriarAsync("Bia", "bia@x.com");
-        var id = (await CriarAsync("Ana", "ana@x.com")).GetProperty("id").GetGuid();
+        var id = (await CriarAsync("Ana", "ana@x.com")).GetProperty("id").GetInt32();
 
         var resposta = await _api.PutAsJsonAsync(new Uri($"/api/v1/clientes/{id}", UriKind.Relative), new { nome = "Ana", email = "BIA@x.com" });
 
@@ -201,7 +232,7 @@ public sealed class ClientesTests(PostgresFixture postgres) : IAsyncLifetime
     [Fact]
     public async Task Atualizar_ProprioEmailComOutraCaixa_Responde200()
     {
-        var id = (await CriarAsync("Ana", "ana@x.com")).GetProperty("id").GetGuid();
+        var id = (await CriarAsync("Ana", "ana@x.com")).GetProperty("id").GetInt32();
 
         var resposta = await _api.PutAsJsonAsync(new Uri($"/api/v1/clientes/{id}", UriKind.Relative), new { nome = "Ana", email = "ANA@x.com" });
 
@@ -211,7 +242,7 @@ public sealed class ClientesTests(PostgresFixture postgres) : IAsyncLifetime
     [Fact]
     public async Task Atualizar_ClienteInexistente_Responde404()
     {
-        var resposta = await _api.PutAsJsonAsync(new Uri($"/api/v1/clientes/{Guid.NewGuid()}", UriKind.Relative), new { nome = "Ana", email = "ana@x.com" });
+        var resposta = await _api.PutAsJsonAsync(new Uri($"/api/v1/clientes/{IdInexistente}", UriKind.Relative), new { nome = "Ana", email = "ana@x.com" });
 
         Assert.Equal(HttpStatusCode.NotFound, resposta.StatusCode);
     }
@@ -221,7 +252,7 @@ public sealed class ClientesTests(PostgresFixture postgres) : IAsyncLifetime
     [Fact]
     public async Task Excluir_ClienteExistente_Responde204EDeixaDeExistir()
     {
-        var id = (await CriarAsync("Ana", "ana@x.com")).GetProperty("id").GetGuid();
+        var id = (await CriarAsync("Ana", "ana@x.com")).GetProperty("id").GetInt32();
         var rota = new Uri($"/api/v1/clientes/{id}", UriKind.Relative);
 
         var resposta = await _api.DeleteAsync(rota);
@@ -233,7 +264,7 @@ public sealed class ClientesTests(PostgresFixture postgres) : IAsyncLifetime
     [Fact]
     public async Task Excluir_ClienteInexistente_Responde404()
     {
-        var resposta = await _api.DeleteAsync(new Uri($"/api/v1/clientes/{Guid.NewGuid()}", UriKind.Relative));
+        var resposta = await _api.DeleteAsync(new Uri($"/api/v1/clientes/{IdInexistente}", UriKind.Relative));
 
         Assert.Equal(HttpStatusCode.NotFound, resposta.StatusCode);
     }
@@ -243,9 +274,9 @@ public sealed class ClientesTests(PostgresFixture postgres) : IAsyncLifetime
     [Theory]
     [InlineData("GET", "/api/v1/clientes")]
     [InlineData("POST", "/api/v1/clientes")]
-    [InlineData("GET", "/api/v1/clientes/0190f0b0-0000-7000-8000-000000000000")]
-    [InlineData("PUT", "/api/v1/clientes/0190f0b0-0000-7000-8000-000000000000")]
-    [InlineData("DELETE", "/api/v1/clientes/0190f0b0-0000-7000-8000-000000000000")]
+    [InlineData("GET", "/api/v1/clientes/1")]
+    [InlineData("PUT", "/api/v1/clientes/1")]
+    [InlineData("DELETE", "/api/v1/clientes/1")]
     public async Task Endpoints_SemToken_Respondem401(string metodo, string rota)
     {
         using var anonimo = _factory.CreateClient();
