@@ -1,0 +1,38 @@
+# Blueprint do Render: a API no plano gratuito, construída a partir do Dockerfile do repositório.
+# Valores secretos NÃO ficam aqui: as variáveis com `sync: false` são preenchidas uma única vez no painel do Render.
+# Banco: PostgreSQL no Neon (fora do Render, cujo Postgres grátis expira em 30 dias).
+services:
+  - type: web
+    name: api-pedidos
+    runtime: docker
+    plan: free
+    region: virginia            # mesma região física do Neon (aws-us-east-1)
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    # /health/live não depende do banco: o Render não reinicia o serviço enquanto o Neon acorda.
+    healthCheckPath: /health/live
+    # Quem dispara o deploy é o pipeline (GitHub Actions), depois de aplicar as migrações.
+    autoDeployTrigger: "off"
+    envVars:
+      - key: PORT
+        value: "8080"
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      # Migrações são aplicadas pelo pipeline (`--migrar`), nunca no startup em produção.
+      - key: APLICAR_MIGRACOES
+        value: "false"
+      - key: JWT_EMISSOR
+        value: pedidos-api
+      - key: JWT_AUDIENCIA
+        value: pedidos-clientes
+      - key: JWT_EXPIRA_MINUTOS
+        value: "60"
+      # Segredos: preenchidos no painel do Render.
+      - key: ConnectionStrings__Padrao
+        sync: false
+      - key: JWT_CHAVE
+        sync: false
+      - key: AUTH_USUARIO
+        sync: false
+      - key: AUTH_SENHA
+        sync: false

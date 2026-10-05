@@ -15,6 +15,12 @@ await using var logDeInicializacao = new LoggerConfiguration()
     .WriteTo.Console(new JsonFormatter(renderMessage: true))
     .CreateLogger();
 
+// Pipeline de entrega: só aplica as migrações e encerra (sem HTTP e sem configuração de segurança).
+if (ModoMigracao.FoiSolicitado(args))
+{
+    return await ModoMigracao.ExecutarAsync(args, logDeInicializacao);
+}
+
 try
 {
     var builder = WebApplication.CreateBuilder(args);

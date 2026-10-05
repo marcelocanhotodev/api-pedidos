@@ -99,6 +99,57 @@ docker run --rm -v "$PWD:/src" -w /src \
 - `Pedidos.UnitTests`: casos de uso, validators, mapeamento de erros, paginação e **testes de arquitetura**. Não usa Docker nem rede.
 - `Pedidos.IntegrationTests`: API real (`WebApplicationFactory`) contra PostgreSQL real (Testcontainers), com migrações DbUp.
 
+## Implantação (Render + Neon + GitHub Actions)
+
+Produção gratuita e **sem cartão de crédito**: a API roda no plano grátis do **Render** (a partir do `Dockerfile`) e o
+banco é um PostgreSQL grátis do **Neon**. O GitHub Actions valida e entrega:
+
+```
+PR / push  --> CI (.github/workflows/ci.yml): build, testes unitários + integração, docker build
+                 |
+        push na main com CI verde
+                 v
+CD (.github/workflows/cd.yml), parando no primeiro erro, uma entrega por vez:
+  checa segredos --> migra o Neon (dotnet ... --migrar) --> deploy no Render (?ref=<commit>) --> confere /info e /health/ready
+```
+
+- O serviço está declarado em [`render.yaml`](render.yaml) (Blueprint): plano grátis, região `virginia`, saúde em
+  `/health/live`, deploy automático desligado (quem implanta é o CD, **depois** de migrar) e `APLICAR_MIGRACOES=false`.
+- `GET /info` informa o commit implantado na `versao` (`1.0.0+0123456`, a partir de `RENDER_GIT_COMMIT`), e é assim que
+  o CD confirma que a versão nova está no ar ([`scripts/verificar-implantacao.sh`](scripts/verificar-implantacao.sh)).
+- **Plano grátis dorme**: depois de 15 min sem tráfego, a primeira requisição leva de 30 a 60 s (API e banco acordando).
+- **Logs de produção** ficam no painel do Render (o Grafana/Loki deste repositório é só do ambiente local).
+
+### Configuração única
+
+1. **Neon** (https://neon.com, entrar com o GitHub): crie o projeto `api-pedidos` na região **AWS US East (N. Virginia)**.
+   Em *Connect*, desligue *Connection pooling* (use o endpoint direto) e monte a connection string no formato do Npgsql:
+   `Host=ep-xxxx.us-east-1.aws.neon.tech;Database=neondb;Username=neondb_owner;Password=<senha>;SSL Mode=Require;Maximum Pool Size=10`
+2. **Render** (https://render.com, entrar com o GitHub): *New → Blueprint* → selecione este repositório. O `render.yaml`
+   é lido automaticamente; preencha as variáveis pedidas:
+   - `ConnectionStrings__Padrao`: a connection string do passo 1;
+   - `JWT_CHAVE`: um valor aleatório com 32+ caracteres (ex.: `openssl rand -base64 48`);
+   - `AUTH_USUARIO` e `AUTH_SENHA`: o usuário que vai emitir tokens em `POST /auth/token`.
+3. **Deploy Hook**: no serviço criado, *Settings → Deploy Hook* → copie a URL.
+4. **GitHub** (*Settings → Secrets and variables → Actions → New repository secret*):
+   - `NEON_CONNECTION_STRING`: a mesma connection string do passo 1;
+   - `RENDER_DEPLOY_HOOK_URL`: a URL do passo 3;
+   - `URL_PRODUCAO`: o endereço do serviço, ex.: `https://api-pedidos.onrender.com`.
+5. **Primeira entrega**: *Actions → CD → Run workflow* (ou um push na `main`). O `--migrar` cria o esquema no Neon,
+   o Render implanta o commit e a verificação confirma `/info` e `/health/ready`.
+
+### Regras e operação
+
+- **Migrações compatíveis com a versão anterior**: o CD migra **antes** do deploy, então por alguns minutos a versão
+  antiga roda sobre o esquema novo. Adicionar tabela/coluna é seguro; remover ou renomear exige duas entregas
+  (primeiro o código deixa de usar, depois a migração remove).
+- **Migração com erro** não dispara deploy: a versão anterior continua no ar e o CD fica vermelho.
+- **Rollback de código**: botão *Rollback* do Render (deploy anterior) ou `git revert` + nova entrega. Migrações são só
+  para frente: desfazer um esquema exige uma migração nova.
+- **Migrar manualmente** (ex.: contra um banco descartável): `dotnet run --project src/Pedidos.Api -- --migrar` com
+  `ConnectionStrings__Padrao` definido; não precisa de `JWT_*` nem `AUTH_*`. Código de saída `0` em sucesso.
+- **Verificar uma implantação à mão**: `scripts/verificar-implantacao.sh https://api-pedidos.onrender.com <commit>`.
+
 ## Variáveis de ambiente
 
 Toda a configuração vem de variáveis de ambiente, documentadas em [`.env.example`](.env.example) com valores
@@ -217,6 +268,15 @@ Cenários da fundação que dependem do Docker em execução e não têm teste a
 | convencoes-api | Swagger disponível | `/swagger` carrega e lista `/info` |
 | seguranca | Chave ausente / Chave curta (processo) | `docker compose run --rm --no-deps -e JWT_CHAVE= api` encerra com código `1` e mensagem clara (também coberto por teste de integração) |
 | qualidade | Warning quebra o build | um warning proposital (ex.: variável não usada) faz `dotnet build` falhar |
+| entrega-continua | Pull request válido / Teste quebrado / Imagem que não constrói | aba *Actions* do GitHub: o workflow **CI** fica verde num PR válido e vermelho com um teste quebrado ou `Dockerfile` inválido |
+| entrega-continua | Entrega bem-sucedida / Versão nova confirmada | workflow **CD** verde: passos de migração, deploy e verificação concluídos; `GET <URL_PRODUCAO>/info` mostra `+<commit>` |
+| entrega-continua | Migração com erro bloqueia o deploy / CI falho não entrega | CD termina no passo de migração (ou nem roda) e o *Events* do Render não registra deploy novo |
+| entrega-continua | Entregas simultâneas | dois pushes seguidos geram duas execuções de CD, a segunda aguardando a primeira (`concurrency: producao`) |
+| entrega-continua | Versão nova não sobe | `scripts/verificar-implantacao.sh <url> <commit-inexistente> 30` termina com código `1` |
+| entrega-continua | Segredo ausente / Repositório sem segredos | CD sem um segredo falha no primeiro passo com o nome dele; `render.yaml` só tem `sync: false` nos segredos |
+| entrega-continua | API pública com HTTPS / Despertar após inatividade / Saúde sem depender do banco | `https://<serviço>.onrender.com/info` responde `200`; após 15 min parado, responde depois de acordar; o Render usa `/health/live` |
+| entrega-continua | Banco exige SSL | connection string com `SSL Mode=Disable` é recusada pelo Neon |
+| persistencia | Migração como etapa de implantação (processo real) | `docker compose run --rm --no-deps -e JWT_CHAVE= api --migrar` sai com `0` sem abrir porta; com banco inacessível sai com `1` |
 | observabilidade | Requisição aparece no Loki | `./observabilidade/verificar.sh` (aguarda o Loki pronto e acha o log de `GET /info` em até 30 s) |
 | observabilidade | Logs do banco coletados | `{servico="postgres"}` no Explore |
 | observabilidade | Somente containers do projeto | `docker run --rm busybox echo marca` não aparece em `{servico=~".+"} \|= "marca"` |

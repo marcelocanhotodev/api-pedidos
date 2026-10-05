@@ -75,6 +75,17 @@ public static class DependencyInjection
             return;
         }
 
+        await services.MigrarAsync(configuration, ct);
+    }
+
+    /// <summary>
+    /// Aguarda o banco (até 30 s) e aplica as migrações pendentes, sem consultar <c>APLICAR_MIGRACOES</c>.
+    /// Usado pelo startup (quando habilitado) e pelo modo <c>--migrar</c> do pipeline de entrega.
+    /// </summary>
+    /// <returns>Nomes dos scripts executados.</returns>
+    public static async Task<IReadOnlyList<string>> MigrarAsync(this IServiceProvider services, IConfiguration configuration, CancellationToken ct)
+    {
+        var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(MigradorDeBanco).FullName!);
         var dataSource = services.GetRequiredService<NpgsqlDataSource>();
         await EsperaPeloBanco.AguardarAsync(
             async token =>
@@ -88,6 +99,6 @@ public static class DependencyInjection
             ct);
 
         // NpgsqlDataSource.ConnectionString omite a senha; o DbUp precisa da string original.
-        services.GetRequiredService<MigradorDeBanco>().Executar(configuration.GetConnectionString(NomeConnectionString)!);
+        return services.GetRequiredService<MigradorDeBanco>().Executar(configuration.GetConnectionString(NomeConnectionString)!);
     }
 }

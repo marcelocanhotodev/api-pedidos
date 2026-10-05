@@ -4,7 +4,11 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace Pedidos.IntegrationTests.Infra;
 
 /// <summary>Sobe a API real em memória apontando para o banco informado, com configuração de segurança de teste.</summary>
-public sealed class ApiFactory(string connectionString, bool aplicarMigracoes = true, string? jwtChave = ApiFactory.ChaveJwt)
+public sealed class ApiFactory(
+    string connectionString,
+    bool aplicarMigracoes = true,
+    string? jwtChave = ApiFactory.ChaveJwt,
+    IReadOnlyDictionary<string, string>? configuracoesExtras = null)
     : WebApplicationFactory<Program>
 {
     public const string ChaveJwt = "chave-jwt-de-teste-com-mais-de-32-caracteres";
@@ -25,5 +29,10 @@ public sealed class ApiFactory(string connectionString, bool aplicarMigracoes = 
         builder.UseSetting("JWT_EXPIRA_MINUTOS", ExpiraMinutos.ToString(System.Globalization.CultureInfo.InvariantCulture));
         builder.UseSetting("AUTH_USUARIO", Usuario);
         builder.UseSetting("AUTH_SENHA", Senha);
+
+        foreach (var (chave, valor) in configuracoesExtras ?? new Dictionary<string, string>())
+        {
+            builder.UseSetting(chave, valor);
+        }
     }
 }

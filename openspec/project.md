@@ -16,7 +16,8 @@ e execução totalmente containerizada.
 - Serilog (logs JSON no stdout)
 - Testes: xUnit, Moq, Testcontainers (PostgreSQL), `WebApplicationFactory`
 - Docker (build multi-stage) e Docker Compose
-- Git no Azure DevOps (pipeline fora do escopo desta versão)
+- Git no GitHub; CI/CD com GitHub Actions (`.github/workflows`)
+- Produção gratuita: API no Render (Docker, `render.yaml`) e PostgreSQL no Neon
 
 ## Arquitetura (Clean Architecture)
 A regra de dependência aponta sempre para dentro:

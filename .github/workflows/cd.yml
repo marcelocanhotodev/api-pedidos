@@ -1,0 +1,89 @@
+# Entrega contínua: depois do CI verde num push para a main, em sequência e parando no primeiro erro:
+#   1. checa os segredos  2. aplica as migrações no Neon (--migrar)  3. dispara o deploy no Render  4. verifica a versão no ar
+# Segredos do repositório: NEON_CONNECTION_STRING, RENDER_DEPLOY_HOOK_URL, URL_PRODUCAO (passo a passo no README).
+name: CD
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  # Reimplanta o commit atual da main manualmente (ex.: depois de configurar os segredos).
+  workflow_dispatch:
+
+# Uma entrega por vez, na ordem dos commits; nunca cancela uma entrega em andamento.
+concurrency:
+  group: producao
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  entregar:
+    name: Migrar, implantar e verificar
+    # Só entrega CI concluído com sucesso de um push (não de pull request).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
+      DOTNET_NOLOGO: "1"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+    steps:
+      - name: Checar segredos
+        env:
+          NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          URL_PRODUCAO: ${{ secrets.URL_PRODUCAO }}
+        run: |
+          faltando=()
+          for nome in NEON_CONNECTION_STRING RENDER_DEPLOY_HOOK_URL URL_PRODUCAO; do
+            [[ -n "${!nome}" ]] || faltando+=("$nome")
+          done
+          if (( ${#faltando[@]} > 0 )); then
+            echo "::error::Segredos ausentes: ${faltando[*]}. Nada foi migrado nem implantado."
+            exit 1
+          fi
+          echo "Segredos presentes. Commit a entregar: ${COMMIT}"
+
+      # Exatamente o commit que passou no CI, mesmo que a main já tenha avançado.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.COMMIT }}
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Cache do NuGet
+        uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Build.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Migrar o banco de produção (Neon)
+        env:
+          ConnectionStrings__Padrao: ${{ secrets.NEON_CONNECTION_STRING }}
+        run: dotnet run --project src/Pedidos.Api -c Release --no-launch-profile -- --migrar
+
+      - name: Disparar o deploy no Render
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          separador='?'
+          [[ "$RENDER_DEPLOY_HOOK_URL" == *\?* ]] && separador='&'
+          status=$(curl -sS -o /dev/null -w '%{http_code}' -X POST "${RENDER_DEPLOY_HOOK_URL}${separador}ref=${COMMIT}")
+          if [[ "$status" != 2* ]]; then
+            echo "::error::O Render recusou o deploy (HTTP ${status})"
+            exit 1
+          fi
+          echo "Deploy do commit ${COMMIT} solicitado ao Render (HTTP ${status})"
+
+      - name: Verificação pós-deploy
+        env:
+          URL_PRODUCAO: ${{ secrets.URL_PRODUCAO }}
+        run: bash scripts/verificar-implantacao.sh "$URL_PRODUCAO" "$COMMIT" 600

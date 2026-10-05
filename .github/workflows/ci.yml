@@ -1,0 +1,70 @@
+# Integração contínua: valida todo push e pull request para a main.
+# Build (warnings são erro via Directory.Build.props), testes unitários, testes de integração
+# (PostgreSQL via Testcontainers, usando o Docker do runner) e build da imagem.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Execução mais nova do mesmo ref cancela a anterior (PRs atualizados com frequência).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-e-testes:
+    name: Build e testes
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DOTNET_NOLOGO: "1"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Cache do NuGet
+        uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Build.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore
+        run: dotnet restore Pedidos.slnx
+
+      - name: Build (warnings como erro)
+        run: dotnet build Pedidos.slnx -c Release --no-restore
+
+      - name: Testes unitários
+        run: dotnet test tests/Pedidos.UnitTests -c Release --no-build --logger "trx;LogFileName=unitarios.trx"
+
+      - name: Testes de integração (Testcontainers)
+        run: dotnet test tests/Pedidos.IntegrationTests -c Release --no-build --logger "trx;LogFileName=integracao.trx"
+
+      - name: Publicar resultados dos testes
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: resultados-dos-testes
+          path: tests/**/TestResults/*.trx
+          if-no-files-found: ignore
+
+  imagem-docker:
+    name: Build da imagem Docker
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: docker build
+        run: docker build --tag api-pedidos:ci .
